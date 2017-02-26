@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@neoncity/common-js": "^0.14.0",
+    "@neoncity/core-sdk-js": "^0.0.0",
     "@neoncity/identity-sdk-js": "^0.5.1",
     "es6-promise": "^4.0.5",      
     "express": "^4.14.0",
