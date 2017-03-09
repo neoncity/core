@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -37,7 +37,6 @@
     "pg": "^6.1.2"
   },
   "devDependencies": {
-    "@neoncity/coverage-filter": "^0.0.7",
     "@neoncity/togemfury": "^0.0.9",
     "@types/chai": "^3.4.34",
     "@types/es6-promise": "0.0.32",
@@ -47,6 +46,7 @@
     "@types/node": "^7.0.0",
     "chai": "^3.5.0",
     "codecov": "^1.0.1",
+    "coverage-filter": "^0.0.2",
     "istanbul": "^0.4.5",
     "mocha": "^3.2.0",
     "nodemon": "^1.11.0",
