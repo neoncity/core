@@ -4,7 +4,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
     CREATE TABLE core.cause (
         id Serial,
         state CauseStatus,
-        user_id int NOT NULL,
+        user_id Int NOT NULL,
         time_created Timestamp NOT NULL,
         time_last_updated Timestamp NOT NULL,
         time_removed Timestamp NOT NULL,
@@ -12,7 +12,8 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         description Text NOT NULL,
         pictures Json NOT NULL,
         deadline Timestamp NOT NULL,
-        goal Json NOT NULL
+        goal Json NOT NULL,
+	bank_info Json NOT NULL
     );
 
     CREATE UNIQUE INDEX cause_user_id ON core.cause(user_id);
