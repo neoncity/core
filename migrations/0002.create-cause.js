@@ -3,7 +3,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
 
     CREATE TABLE core.cause (
         id Serial,
-        state CauseStatus,
+        state CauseState,
         user_id Int NOT NULL,
         time_created Timestamp NOT NULL,
         time_last_updated Timestamp NOT NULL,
