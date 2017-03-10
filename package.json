@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -27,10 +27,10 @@
     "tsconfig.json": "f:tsconfig.json"
   },
   "dependencies": {
-    "@neoncity/common-js": "^0.14.0",
-    "@neoncity/common-server-js": "^0.0.0",
-    "@neoncity/core-sdk-js": "^0.0.0",
-    "@neoncity/identity-sdk-js": "^0.5.1",
+    "@neoncity/common-js": "^0.14.4",
+    "@neoncity/common-server-js": "^0.0.2",
+    "@neoncity/core-sdk-js": "^0.0.1",
+    "@neoncity/identity-sdk-js": "^0.5.2",
     "es6-promise": "^4.0.5",
     "express": "^4.14.0",
     "knex": "^0.12.6",
