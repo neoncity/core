@@ -47,6 +47,7 @@ ENV SECRETS_PATH /neoncity/var/secrets.json
 
 RUN chown -R neoncity:neoncity /neoncity
 VOLUME ["/neoncity/pack/src"]
+VOLUME ["/neoncity/pack/migrations"]
 VOLUME ["/neoncity/pack/node_modules"]
 VOLUME ["/neoncity/var/secrets.json"]
 WORKDIR /neoncity/pack
