@@ -13,7 +13,8 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         pictures Json NOT NULL,
         deadline Timestamp NOT NULL,
         goal Json NOT NULL,
-	bank_info Json NOT NULL
+	bank_info Json NOT NULL,
+	PRIMARY KEY (id)
     );
 
     CREATE UNIQUE INDEX cause_user_id ON core.cause(user_id);
