@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -34,8 +34,7 @@
     "es6-promise": "=4.0.5",
     "express": "=4.14.0",
     "knex": "=0.12.6",
-    "pg": "=6.1.2",
-    "raynor": "=0.1.2"
+    "pg": "=6.1.2"
   },
   "devDependencies": {
     "@neoncity/togemfury": "=0.0.9",
