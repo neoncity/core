@@ -17,7 +17,8 @@ RUN apt-get update -y && \
 # Setup directory structure.
 
 RUN mkdir /neoncity
-RUN mkdir /neoncity/pack
+RUN mkdir /neoncity/build
+RUN mkdir /neoncity/out
 RUN mkdir /neoncity/var
 
 # Setup users and groups.
@@ -27,12 +28,12 @@ RUN groupadd neoncity && \
 
 # Install package requirements.
 
-# COPY package.json /neoncity/pack/package.json
-# RUN cd /neoncity/pack && npm install --registry=https://npm-proxy.fury.io/${GEMFURY_API_KEY}/${GEMFURY_USER}/ --progress=false
+# COPY package.json /neoncity/package.json
+# RUN cd /neoncity && npm install --registry=https://npm-proxy.fury.io/${GEMFURY_API_KEY}/${GEMFURY_USER}/ --progress=false
 
 # Copy source code.
 
-COPY . /neoncity/pack
+COPY . /neoncity
 
 # Setup the runtime environment for the application.
 
@@ -40,17 +41,19 @@ ENV ENV LOCAL
 ENV ADDRESS 0.0.0.0
 ENV PORT 10000
 ENV DATABASE_URL postgresql://neoncity:neoncity@neoncity-postgres:5432/neoncity
-ENV DATABASE_MIGRATIONS_DIR /neoncity/pack/migrations
+ENV DATABASE_MIGRATIONS_DIR /neoncity/migrations
 ENV DATABASE_MIGRATIONS_TABLE migrations_core
 ENV CLIENTS http://localhost:10003
 ENV SECRETS_PATH /neoncity/var/secrets.json
 
-RUN chown -R neoncity:neoncity /neoncity
-VOLUME ["/neoncity/pack/src"]
-VOLUME ["/neoncity/pack/migrations"]
-VOLUME ["/neoncity/pack/node_modules"]
+RUN chown -R neoncity:neoncity /neoncity/build
+RUN chown -R neoncity:neoncity /neoncity/out
+RUN chown -R neoncity:neoncity /neoncity/var
+VOLUME ["/neoncity/src"]
+VOLUME ["/neoncity/migrations"]
+VOLUME ["/neoncity/node_modules"]
 VOLUME ["/neoncity/var/secrets.json"]
-WORKDIR /neoncity/pack
+WORKDIR /neoncity
 EXPOSE 10000
 USER neoncity
 ENTRYPOINT ["npm", "run", "serve-dev"]
