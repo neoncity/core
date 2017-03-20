@@ -44,7 +44,7 @@ ENV DATABASE_URL postgresql://neoncity:neoncity@neoncity-postgres:5432/neoncity
 ENV DATABASE_MIGRATIONS_DIR /neoncity/migrations
 ENV DATABASE_MIGRATIONS_TABLE migrations_core
 ENV CLIENTS http://localhost:10003
-ENV IDENTITY_SERVICE_HOST localhost:10001
+ENV IDENTITY_SERVICE_HOST neoncity-identity:10000
 ENV SECRETS_PATH /neoncity/var/secrets.json
 
 RUN chown -R neoncity:neoncity /neoncity/build
