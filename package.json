@@ -28,9 +28,9 @@
   },
   "dependencies": {
     "@neoncity/common-js": "=1.0.0",
-    "@neoncity/common-server-js": "=0.0.4",
-    "@neoncity/core-sdk-js": "=0.2.0",
-    "@neoncity/identity-sdk-js": "=0.6.1",
+    "@neoncity/common-server-js": "=0.2.0",
+    "@neoncity/core-sdk-js": "=0.2.1",
+    "@neoncity/identity-sdk-js": "=1.1.0",
     "es6-promise": "=4.0.5",
     "express": "=4.14.0",
     "knex": "=0.12.6",
