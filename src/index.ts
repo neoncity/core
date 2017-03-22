@@ -1,9 +1,10 @@
+import { wrap } from 'async-middleware'
 import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as knex from 'knex'
 import { MarshalFrom } from 'raynor'
 
-import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, /*startupMigration*/ } from '@neoncity/common-server-js'
+import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { Cause, CauseResponse, CauseState, CreateCauseRequest } from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
@@ -11,7 +12,7 @@ import * as config from './config'
 
 
 async function main() {
-    // startupMigration();
+    startupMigration();
 
     const app = express();
     const identityClient: IdentityClient = newIdentityClient(config.IDENTITY_SERVICE_HOST);
@@ -39,13 +40,14 @@ async function main() {
 
     const causesRouter = express.Router();
 
-    causesRouter.get('/', async (_: Request, res: express.Response) => {
+    causesRouter.get('/', wrap(async (_: Request, res: express.Response) => {
         res.write('GET Causes');
         res.end();
-    });
+    }));
 
-    causesRouter.post('/', async (req: Request, res: express.Response) => {
+    causesRouter.post('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
+	    console.log('No authInfo');
 	    res.status(400);
 	    res.end();
 	    return;
@@ -56,7 +58,7 @@ async function main() {
 	try {
 	    createCauseRequest = createCauseRequestMarshaller.extract(req.body) as CreateCauseRequest;
 	} catch (e) {
-	    console.log(e.toString());
+	    console.log(`Invalid creation data - ${e.toString()}`);
 	    res.status(400);
 	    res.end();
 	    return;
@@ -65,10 +67,9 @@ async function main() {
 	// Make a call to the identity service to retrieve the user.
 	let user: User|null = null;
 	try {
-	    console.log(req.authInfo.auth0AccessToken);
 	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
 	} catch (e) {
-	    console.log(e.toString());
+	    console.log(`Call to identity service failed - ${e.toString()}`);
 	    res.status(500);
 	    res.end();
 	    return;
@@ -96,6 +97,7 @@ async function main() {
 		    'bank_info': createCauseRequest.bankInfo
 		}) as number;
 	} catch (e) {
+	    console.log(`DB insertion error - ${e.toString()}`);
 	    res.status(500);
 	    res.end();
 	    return;
@@ -119,37 +121,37 @@ async function main() {
 	
         res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)));
         res.end();
-    });
+    }));
 
-    causesRouter.get('/:causeId', async (_: Request, res: express.Response) => {
+    causesRouter.get('/:causeId', wrap(async (_: Request, res: express.Response) => {
         res.write('GET one cause');
         res.end();
-    });
+    }));
 
-    causesRouter.put('/:causeId', async (_: Request, res: express.Response) => {
+    causesRouter.put('/:causeId', wrap(async (_: Request, res: express.Response) => {
         res.write('PUT one cause');
         res.end();
-    });
+    }));
 
-    causesRouter.delete('/:causeId', async (_: Request, res: express.Response) => {
+    causesRouter.delete('/:causeId', wrap(async (_: Request, res: express.Response) => {
         res.write('DELETE one cause');
         res.end();
-    });
+    }));
 
-    causesRouter.post('/:causeId/donations', async (_: Request, res: express.Response) => {
+    causesRouter.post('/:causeId/donations', wrap(async (_: Request, res: express.Response) => {
         res.write('POST a donation to a cause');
         res.end();
-    });
+    }));
 
-    causesRouter.post('/:causeId/shares', async (_: Request, res: express.Response) => {
+    causesRouter.post('/:causeId/shares', wrap(async (_: Request, res: express.Response) => {
         res.write('POST a share to a cause');
         res.end();
-    });
+    }));
 
     app.use('/causes', causesRouter);
 
     app.listen(config.PORT, config.ADDRESS, () => {
-	console.log(`Started ... ${config.ADDRESS}:${config.PORT}`);
+	console.log(`Started core service on ${config.ADDRESS}:${config.PORT}`);
     });
 }
 

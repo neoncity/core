@@ -31,6 +31,7 @@
     "@neoncity/common-server-js": "=0.2.0",
     "@neoncity/core-sdk-js": "=0.2.1",
     "@neoncity/identity-sdk-js": "=1.1.0",
+    "async-middleware": "^1.0.2",
     "body-parser": "=1.17.1",
     "es6-promise": "=4.0.5",
     "express": "=4.14.0",

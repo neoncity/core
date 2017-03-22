@@ -7,7 +7,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         user_id Int NOT NULL,
         time_created Timestamp NOT NULL,
         time_last_updated Timestamp NOT NULL,
-        time_removed Timestamp NOT NULL,
+        time_removed Timestamp NULL,
         title VarChar(128) NOT NULL,
         description Text NOT NULL,
         pictures Json NOT NULL,
