@@ -2,13 +2,20 @@ import { wrap } from 'async-middleware'
 import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as knex from 'knex'
-import { MarshalFrom } from 'raynor'
+import * as r from 'raynor'
+import { MarshalFrom, MarshalWith } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
-import { Cause, CauseResponse, CauseState, CreateCauseRequest } from '@neoncity/core-sdk-js'
+import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest } from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
+
+
+class OneCauseParams {
+    @MarshalWith(r.IdMarshaller)
+    causeId: number;
+}
 
 
 async function main() {
@@ -22,7 +29,9 @@ async function main() {
     });
 
     const createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
-    const causeResponseMarshaller = new (MarshalFrom(CauseResponse))();    
+    const causesResponseMarshaller = new (MarshalFrom(CausesResponse))();
+    const causeResponseMarshaller = new (MarshalFrom(CauseResponse))();
+    const oneCauseParamsMarshaller = new (MarshalFrom(OneCauseParams))();
 
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS));
@@ -41,7 +50,50 @@ async function main() {
     const causesRouter = express.Router();
 
     causesRouter.get('/', wrap(async (_: Request, res: express.Response) => {
-        res.write('GET Causes');
+	let dbCauses: any|null = null;
+	try {
+	    dbCauses = await conn('core.cause')
+		.select([
+		    'id',
+		    'state',
+		    'user_id',
+		    'time_created',
+		    'time_last_updated',
+		    'title',
+		    'description',
+		    'pictures',
+		    'deadline',
+		    'goal',
+		    'bank_info'])
+		.where({state: 'active'})
+		.orderBy('time_created', 'desc');
+	} catch (e) {
+	    console.log(`DB read error - ${e.toString()}`);
+	    res.status(500);
+	    res.end();
+	    return;
+	}
+
+	const causes = dbCauses.map(dbC => {
+	    const cause = new Cause();
+	    cause.id = dbC['id'];
+	    cause.state = _dbCauseStateToCauseState(dbC['state']);
+	    cause.timeCreated = new Date(dbC['time_created']);
+	    cause.timeLastUpdated = new Date(dbC['time_last_updated']);
+	    cause.title = dbC['title'];
+	    cause.description = dbC['description'];
+	    cause.pictures = dbC['pictures'];
+	    cause.deadline = dbC['deadline'];
+	    cause.goal = dbC['goal'];
+	    cause.bankInfo = dbC['bank_info'];
+
+	    return cause;
+	});
+
+	const causesResponse = new CausesResponse();
+	causesResponse.causes = causes;
+	
+        res.write(JSON.stringify(causesResponseMarshaller.pack(causesResponse)))
         res.end();
     }));
 
@@ -97,8 +149,13 @@ async function main() {
 		    'bank_info': createCauseRequest.bankInfo
 		}) as number;
 	} catch (e) {
-	    console.log(`DB insertion error - ${e.toString()}`);
-	    res.status(500);
+	    if (e.detail == 'Key (user_id)=(1) already exists.') {
+		console.log('Cause already exists for user');
+		res.status(409);
+	    } else {
+		console.log(`DB insertion error - ${e.toString()}`);
+		res.status(500);
+	    }
 	    res.end();
 	    return;
 	}
@@ -120,10 +177,40 @@ async function main() {
 	causeResponse.cause = cause;
 	
         res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)));
+	res.status(201);
         res.end();
     }));
 
-    causesRouter.get('/:causeId', wrap(async (_: Request, res: express.Response) => {
+    causesRouter.get('/:causeId', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(400);
+	    res.end();
+	    return;
+	}
+
+	// Parse request data.
+	let causeParams: OneCauseParams|null = null;
+	try {
+	    causeParams = oneCauseParamsMarshaller.extract(req.params);
+	} catch (e) {
+	    console.log(`Invalid params - ${e.toString()}`);
+	    res.status(400);
+	    res.end();
+	    return;
+	}
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    console.log(`Call to identity service failed - ${e.toString()}`);
+	    res.status(500);
+	    res.end();
+	    return;
+	}
+	
         res.write('GET one cause');
         res.end();
     }));
@@ -170,16 +257,16 @@ function _causeStateToDbCauseState(causeState: CauseState): 'active'|'succeeded'
 }
 
 
-// function _dbCauseStateToCauseState(dbCauseState: 'active'|'succeeded'|'removed'): CauseState {
-//     switch (dbCauseState) {
-//     case 'active':
-// 	return CauseState.Active;
-//     case 'succeeded':
-// 	return CauseState.Succeeded;
-//     case 'removed':
-// 	return CauseState.Removed;
-//     }
-// }
+function _dbCauseStateToCauseState(dbCauseState: 'active'|'succeeded'|'removed'): CauseState {
+    switch (dbCauseState) {
+    case 'active':
+	return CauseState.Active;
+    case 'succeeded':
+	return CauseState.Succeeded;
+    case 'removed':
+	return CauseState.Removed;
+    }
+}
 
 
 main();
