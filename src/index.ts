@@ -8,7 +8,7 @@ import { MarshalFrom, MarshalWith } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest } from '@neoncity/core-sdk-js'
-import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
+import { IdentityClient, newIdentityClient, UnauthorizedIdentityError, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
 
@@ -67,7 +67,7 @@ async function main() {
 		    'goal',
 		    'bank_info'])
 		.where({state: 'active'})
-		.orderBy('time_created', 'desc');
+		.orderBy('time_created', 'desc') as any[];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -123,8 +123,15 @@ async function main() {
 	try {
 	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
 	} catch (e) {
-	    console.log(`Call to identity service failed - ${e.toString()}`);
-	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+		console.log('User is unauthorized try');
+		res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+		console.log(`Call to identity service failed - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
 	    res.end();
 	    return;
 	}
@@ -207,8 +214,15 @@ async function main() {
 	try {
 	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
 	} catch (e) {
-	    console.log(`Call to identity service failed - ${e.toString()}`);
-	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+		console.log('User is unauthorized try');
+		res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+		console.log(`Call to identity service failed - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
 	    res.end();
 	    return;
 	}
