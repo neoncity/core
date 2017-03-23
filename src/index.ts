@@ -1,6 +1,7 @@
 import { wrap } from 'async-middleware'
 import * as bodyParser from 'body-parser'
 import * as express from 'express'
+import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
 import * as r from 'raynor'
 import { MarshalFrom, MarshalWith } from 'raynor'
@@ -50,7 +51,7 @@ async function main() {
     const causesRouter = express.Router();
 
     causesRouter.get('/', wrap(async (_: Request, res: express.Response) => {
-	let dbCauses: any|null = null;
+	let dbCauses: any[]|null = null;
 	try {
 	    dbCauses = await conn('core.cause')
 		.select([
@@ -69,12 +70,12 @@ async function main() {
 		.orderBy('time_created', 'desc');
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
-	    res.status(500);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
 	}
 
-	const causes = dbCauses.map(dbC => {
+	const causes = dbCauses.map((dbC: any) => {
 	    const cause = new Cause();
 	    cause.id = dbC['id'];
 	    cause.state = _dbCauseStateToCauseState(dbC['state']);
@@ -94,13 +95,14 @@ async function main() {
 	causesResponse.causes = causes;
 	
         res.write(JSON.stringify(causesResponseMarshaller.pack(causesResponse)))
+	res.status(HttpStatus.OK);
         res.end();
     }));
 
     causesRouter.post('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
-	    res.status(400);
+	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
 	}
@@ -111,7 +113,7 @@ async function main() {
 	    createCauseRequest = createCauseRequestMarshaller.extract(req.body) as CreateCauseRequest;
 	} catch (e) {
 	    console.log(`Invalid creation data - ${e.toString()}`);
-	    res.status(400);
+	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
 	}
@@ -122,7 +124,7 @@ async function main() {
 	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
 	} catch (e) {
 	    console.log(`Call to identity service failed - ${e.toString()}`);
-	    res.status(500);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
 	}
@@ -151,10 +153,10 @@ async function main() {
 	} catch (e) {
 	    if (e.detail == 'Key (user_id)=(1) already exists.') {
 		console.log('Cause already exists for user');
-		res.status(409);
+		res.status(HttpStatus.CONFLICT);
 	    } else {
 		console.log(`DB insertion error - ${e.toString()}`);
-		res.status(500);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    res.end();
 	    return;
@@ -177,14 +179,14 @@ async function main() {
 	causeResponse.cause = cause;
 	
         res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)));
-	res.status(201);
+	res.status(HttpStatus.CREATED);
         res.end();
     }));
 
     causesRouter.get('/:causeId', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
-	    res.status(400);
+	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
 	}
@@ -195,7 +197,7 @@ async function main() {
 	    causeParams = oneCauseParamsMarshaller.extract(req.params);
 	} catch (e) {
 	    console.log(`Invalid params - ${e.toString()}`);
-	    res.status(400);
+	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
 	}
@@ -206,7 +208,7 @@ async function main() {
 	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
 	} catch (e) {
 	    console.log(`Call to identity service failed - ${e.toString()}`);
-	    res.status(500);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
 	}
