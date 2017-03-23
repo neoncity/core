@@ -3,20 +3,13 @@ import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
-import * as r from 'raynor'
-import { MarshalFrom, MarshalWith } from 'raynor'
+import { MarshalFrom } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest } from '@neoncity/core-sdk-js'
-import { IdentityClient, newIdentityClient, UnauthorizedIdentityError, User } from '@neoncity/identity-sdk-js'
+import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
-
-
-class OneCauseParams {
-    @MarshalWith(r.IdMarshaller)
-    causeId: number;
-}
 
 
 async function main() {
@@ -32,7 +25,6 @@ async function main() {
     const createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
     const causesResponseMarshaller = new (MarshalFrom(CausesResponse))();
     const causeResponseMarshaller = new (MarshalFrom(CauseResponse))();
-    const oneCauseParamsMarshaller = new (MarshalFrom(OneCauseParams))();
 
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS));
@@ -165,6 +157,7 @@ async function main() {
 		console.log(`DB insertion error - ${e.toString()}`);
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
+	    
 	    res.end();
 	    return;
 	}
@@ -199,15 +192,7 @@ async function main() {
 	}
 
 	// Parse request data.
-	let causeParams: OneCauseParams|null = null;
-	try {
-	    causeParams = oneCauseParamsMarshaller.extract(req.params);
-	} catch (e) {
-	    console.log(`Invalid params - ${e.toString()}`);
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
+	// const causeId = parseInt(req.params['causeId']);
 
 	// Make a call to the identity service to retrieve the user.
 	let user: User|null = null;
@@ -236,8 +221,58 @@ async function main() {
         res.end();
     }));
 
-    causesRouter.delete('/:causeId', wrap(async (_: Request, res: express.Response) => {
-        res.write('DELETE one cause');
+    causesRouter.delete('/:causeId', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Parse request data.
+	const causeId = parseInt(req.params['causeId']);
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+		console.log('User is unauthorized');
+		res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+		console.log(`Call to identity service failed - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	// Mark the cause of this user as deleted.
+	try {
+	    const dbIds = await conn('core.cause')
+		.where({id: causeId, user_id: user.id})
+		.update({
+		    'state': _causeStateToDbCauseState(CauseState.Removed),
+		    'time_removed': req.requestTime
+		}, 'id') as number[];
+
+	    if (dbIds.length == 0) {
+		console.log('Cause does not exist');
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+	} catch (e) {
+	    console.log(`DB update error - ${e.toString()}`);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    res.end();
+	    return;
+	}
+
+	res.status(HttpStatus.NO_CONTENT);
         res.end();
     }));
 
