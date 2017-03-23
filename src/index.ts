@@ -40,24 +40,29 @@ async function main() {
     // POST /causes/:causeId/donations - record that a donation has been made by a user for this cause.
     // POST /causes/:causeId/shares - share that a share has been made by a user for this cause.
 
+    const causePublicFields = [
+	'id',
+	'state',
+	'user_id',
+	'time_created',
+	'time_last_updated',
+	'title',
+	'description',
+	'pictures',
+	'deadline',
+	'goal'
+    ];
+
+    const causePrivateFields = causePublicFields.slice();
+    causePrivateFields.push('bank_info');
+
     const causesRouter = express.Router();
 
     causesRouter.get('/', wrap(async (_: Request, res: express.Response) => {
 	let dbCauses: any[]|null = null;
 	try {
 	    dbCauses = await conn('core.cause')
-		.select([
-		    'id',
-		    'state',
-		    'user_id',
-		    'time_created',
-		    'time_last_updated',
-		    'title',
-		    'description',
-		    'pictures',
-		    'deadline',
-		    'goal',
-		    'bank_info'])
+		.select(causePublicFields)
 		.where({state: 'active'})
 		.orderBy('time_created', 'desc') as any[];
 	} catch (e) {
@@ -78,7 +83,7 @@ async function main() {
 	    cause.pictures = dbC['pictures'];
 	    cause.deadline = dbC['deadline'];
 	    cause.goal = dbC['goal'];
-	    cause.bankInfo = dbC['bank_info'];
+	    cause.bankInfo = null;
 
 	    return cause;
 	});
@@ -184,35 +189,68 @@ async function main() {
     }));
 
     causesRouter.get('/:causeId', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
 	// Parse request data.
-	// const causeId = parseInt(req.params['causeId']);
+	const causeId = parseInt(req.params['causeId']);
 
 	// Make a call to the identity service to retrieve the user.
 	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-		console.log('User is unauthorized try');
-		res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-		console.log(`Call to identity service failed - ${e.toString()}`);
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	if (req.authInfo != null) {
+	    try {
+		user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	    } catch (e) {
+		// In lieu of instanceof working
+		if (e.name == 'UnauthorizedIdentityError') {
+		    console.log('User is unauthorized');
+		    res.status(HttpStatus.UNAUTHORIZED);
+		} else {
+		    console.log(`Call to identity service failed - ${e.toString()}`);
+		    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+		}
+		
+		res.end();
+		return;
 	    }
-	    
+	}
+
+	let dbCause: any|null = null;
+	try {
+	    const dbCauses = await conn('core.cause')
+		  .select(causePrivateFields)
+		  .where({id: causeId, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .limit(1);
+
+	    if (dbCauses.length == 0) {
+		console.log('Cause does not exist');
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+
+	    dbCause = dbCauses[0];
+	} catch (e) {
+	    console.log(`DB read error - ${e.toString()}`);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
 	}
-	
-        res.write('GET one cause');
+
+	const cause = new Cause();
+	cause.id = dbCause['id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['state']);
+	cause.timeCreated = new Date(dbCause['time_created']);
+	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.title = dbCause['title'];
+	cause.description = dbCause['description'];
+	cause.pictures = dbCause['pictures'];
+	cause.deadline = dbCause['deadline'];
+	cause.goal = dbCause['goal'];
+	cause.bankInfo = user != null && user.id == dbCause['user_id'] ? dbCause['bank_info'] : null;
+
+	const causeResponse = new CauseResponse();
+	causeResponse.cause = cause;
+		
+        res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)))
+	res.status(HttpStatus.OK);
         res.end();
     }));
 
@@ -253,11 +291,11 @@ async function main() {
 	// Mark the cause of this user as deleted.
 	try {
 	    const dbIds = await conn('core.cause')
-		.where({id: causeId, user_id: user.id})
-		.update({
-		    'state': _causeStateToDbCauseState(CauseState.Removed),
-		    'time_removed': req.requestTime
-		}, 'id') as number[];
+		  .where({id: causeId, user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .update({
+		      'state': _causeStateToDbCauseState(CauseState.Removed),
+		      'time_removed': req.requestTime
+		  }, 'id') as number[];
 
 	    if (dbIds.length == 0) {
 		console.log('Cause does not exist');
