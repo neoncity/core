@@ -6,7 +6,7 @@ import * as knex from 'knex'
 import { MarshalFrom } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
-import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest } from '@neoncity/core-sdk-js'
+import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest, UpdateCauseRequest } from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
@@ -23,6 +23,7 @@ async function main() {
     });
 
     const createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
+    const updateCauseRequestMarshaller = new (MarshalFrom(UpdateCauseRequest))();
     const causesResponseMarshaller = new (MarshalFrom(CausesResponse))();
     const causeResponseMarshaller = new (MarshalFrom(CauseResponse))();
 
@@ -254,8 +255,95 @@ async function main() {
         res.end();
     }));
 
-    causesRouter.put('/:causeId', wrap(async (_: Request, res: express.Response) => {
-        res.write('PUT one cause');
+    causesRouter.put('/:causeId', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Parse request data.
+	const causeId = parseInt(req.params['causeId']);
+
+	let updateCauseRequest: UpdateCauseRequest|null = null;
+	try {
+	    updateCauseRequest = updateCauseRequestMarshaller.extract(req.body) as UpdateCauseRequest;
+	} catch (e) {
+	    console.log(`Invalid creation data - ${e.toString()}`);
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+		console.log('User is unauthorized');
+		res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+		console.log(`Call to identity service failed - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	// TODO: verify deadlline is OK.
+
+	// TODO: improve typing here.
+	const updateDict: any = {};
+	for (let prop of Object.keys(updateCauseRequest)) {
+	    updateDict[_nameToDbName(prop)] = (updateCauseRequest as any)[prop];
+	}
+	console.log(updateDict);
+
+	// Update the cause of this user.
+	let dbCause: any|null = null;
+	try {
+	    const dbCauses = await conn('core.cause')
+		  .where({id: causeId, user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .returning(causePrivateFields)
+		  .update(updateDict) as any[];
+
+	    if (dbCauses.length == 0) {
+		console.log('Cause does not exist');
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+
+	    dbCause = dbCauses[0];
+	} catch (e) {
+	    console.log(`DB update error - ${e.toString()}`);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    res.end();
+	    return;
+	}
+
+	// Return value.
+	const cause = new Cause();
+	cause.id = dbCause['id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['state']);
+	cause.timeCreated = new Date(dbCause['time_created']);
+	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.title = dbCause['title'];
+	cause.description = dbCause['description'];
+	cause.pictures = dbCause['pictures'];
+	cause.deadline = dbCause['deadline'];
+	cause.goal = dbCause['goal'];
+	cause.bankInfo = dbCause['bank_info'];
+
+	const causeResponse = new CauseResponse();
+	causeResponse.cause = cause;
+	
+        res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)));
+	res.status(HttpStatus.OK);
         res.end();
     }));
 
@@ -354,6 +442,15 @@ function _dbCauseStateToCauseState(dbCauseState: 'active'|'succeeded'|'removed')
 	return CauseState.Succeeded;
     case 'removed':
 	return CauseState.Removed;
+    }
+}
+
+
+function _nameToDbName(prop: string): string {
+    if (prop == 'bankInfo') {
+	return 'bank_info';
+    } else {
+	return prop;
     }
 }
 
