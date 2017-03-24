@@ -7,7 +7,8 @@ import { MarshalFrom } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest,
-	 CreateDonationRequest, DonationForUser, UpdateCauseRequest, UserDonationResponse } from '@neoncity/core-sdk-js'
+	 CreateDonationRequest, CreateShareRequest, DonationForUser, ShareForUser, UpdateCauseRequest,
+	 UserDonationResponse, UserShareResponse } from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
@@ -26,9 +27,11 @@ async function main() {
     const createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
     const updateCauseRequestMarshaller = new (MarshalFrom(UpdateCauseRequest))();
     const createDonationRequestMarshaller = new (MarshalFrom(CreateDonationRequest))();
+    const createShareRequestMarshaller = new (MarshalFrom(CreateShareRequest))();    
     const causesResponseMarshaller = new (MarshalFrom(CausesResponse))();
     const causeResponseMarshaller = new (MarshalFrom(CauseResponse))();
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
+    const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
 
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS));
@@ -196,6 +199,13 @@ async function main() {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
+	if (isNaN(causeId)) {
+	    console.log('Invalid cause id');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
 	// Make a call to the identity service to retrieve the user.
 	let user: User|null = null;
 	if (req.authInfo != null) {
@@ -268,6 +278,13 @@ async function main() {
 
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
+
+	if (isNaN(causeId)) {
+	    console.log('Invalid cause id');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
 
 	let updateCauseRequest: UpdateCauseRequest|null = null;
 	try {
@@ -361,6 +378,13 @@ async function main() {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
+	if (isNaN(causeId)) {
+	    console.log('Invalid cause id');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
 	// Make a call to the identity service to retrieve the user.
 	let user: User|null = null;
 	try {
@@ -415,6 +439,13 @@ async function main() {
 
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
+
+	if (isNaN(causeId)) {
+	    console.log('Invalid cause id');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
 
 	let createDonationRequest: CreateDonationRequest|null = null;
 	try {
@@ -509,8 +540,112 @@ async function main() {
         res.end();
     }));
 
-    causesRouter.post('/:causeId/shares', wrap(async (_: Request, res: express.Response) => {
-        res.write('POST a share to a cause');
+    causesRouter.post('/:causeId/shares', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Parse request data.
+	const causeId = parseInt(req.params['causeId']);
+
+	if (isNaN(causeId)) {
+	    console.log('Invalid cause id');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	let createShareRequest: CreateShareRequest|null = null;
+	try {
+	    createShareRequest = createShareRequestMarshaller.extract(req.body);
+	} catch (e) {
+	    console.log(`Invalid creation data - ${e.toString()}`);
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+		console.log('User is unauthorized');
+		res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+		console.log(`Call to identity service failed - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	// Create share
+	let dbCause: any|null = null;
+	let dbId: number = -1;
+	try {
+	    await conn.transaction(async (trx) => {
+		const dbCauses = await trx
+		      .from('core.cause')
+		      .select(causePublicFields)
+		      .where({id: causeId, state: _causeStateToDbCauseState(CauseState.Active)});
+
+		if (dbCauses.length == 0) {
+		    throw new Error('Cause does not exist');
+		}
+
+		dbCause = dbCauses[0];
+
+		dbId = await trx
+		      .from('core.share')
+		      .returning('id')
+		      .insert({
+			  'time_created': req.requestTime,
+			  'cause_id': causeId,
+			  'user_id': (user as User).id
+		      });
+	    });
+	} catch (e) {
+	    if (e.message == 'Cause does not exist') {
+		console.log('Cause does not exist');
+		res.status(HttpStatus.NOT_FOUND);
+	    } else {
+		console.log(`DB insertion error - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	const cause = new Cause();
+	cause.id = dbCause['id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['state']);
+	cause.timeCreated = new Date(dbCause['time_created']);
+	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.title = dbCause['title'];
+	cause.description = dbCause['description'];
+	cause.pictures = dbCause['pictures'];
+	cause.deadline = dbCause['deadline'];
+	cause.goal = dbCause['goal'];
+	cause.bankInfo = null;
+
+	const shareForUser = new ShareForUser();
+	shareForUser.id = dbId as number;
+	shareForUser.timeCreated = req.requestTime;
+	shareForUser.forCause = cause;
+
+	const userShareResponse = new UserShareResponse();
+	userShareResponse.share = shareForUser;
+
+	res.write(JSON.stringify(userShareResponseMarshaller.pack(userShareResponse)));
+        res.status(HttpStatus.CREATED);
         res.end();
     }));
 
