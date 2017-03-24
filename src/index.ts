@@ -6,7 +6,8 @@ import * as knex from 'knex'
 import { MarshalFrom } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
-import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest, UpdateCauseRequest } from '@neoncity/core-sdk-js'
+import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest,
+	 CreateDonationRequest, DonationForUser, UpdateCauseRequest, UserDonationResponse } from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
@@ -24,8 +25,10 @@ async function main() {
 
     const createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
     const updateCauseRequestMarshaller = new (MarshalFrom(UpdateCauseRequest))();
+    const createDonationRequestMarshaller = new (MarshalFrom(CreateDonationRequest))();
     const causesResponseMarshaller = new (MarshalFrom(CausesResponse))();
     const causeResponseMarshaller = new (MarshalFrom(CauseResponse))();
+    const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
 
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS));
@@ -402,8 +405,107 @@ async function main() {
         res.end();
     }));
 
-    causesRouter.post('/:causeId/donations', wrap(async (_: Request, res: express.Response) => {
-        res.write('POST a donation to a cause');
+    causesRouter.post('/:causeId/donations', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Parse request data.
+	const causeId = parseInt(req.params['causeId']);
+
+	let createDonationRequest: CreateDonationRequest|null = null;
+	try {
+	    createDonationRequest = createDonationRequestMarshaller.extract(req.body);
+	} catch (e) {
+	    console.log(`Invalid creation data - ${e.toString()}`);
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+		console.log('User is unauthorized');
+		res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+		console.log(`Call to identity service failed - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	// Create donation
+	let dbCause: any|null = null;
+	let dbId: number = -1;
+	try {
+	    await conn.transaction(async (trx) => {
+		const dbCauses = await trx
+		      .from('core.cause')
+		      .select(causePublicFields)
+		      .where({id: causeId, state: _causeStateToDbCauseState(CauseState.Active)});
+
+		if (dbCauses.length == 0) {
+		    throw new Error('Cause does not exist');
+		}
+
+		dbCause = dbCauses[0];
+
+		dbId = await trx
+		      .from('core.donation')
+		      .returning('id')
+		      .insert({
+			  'time_created': req.requestTime,
+			  'cause_id': causeId,
+			  'user_id': (user as User).id,
+			  'amount': (createDonationRequest as CreateDonationRequest).amount
+		      });
+	    });
+	} catch (e) {
+	    if (e.message == 'Cause does not exist') {
+		console.log('Cause does not exist');
+		res.status(HttpStatus.NOT_FOUND);
+	    } else {
+		console.log(`DB insertion error - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	const cause = new Cause();
+	cause.id = dbCause['id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['state']);
+	cause.timeCreated = new Date(dbCause['time_created']);
+	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.title = dbCause['title'];
+	cause.description = dbCause['description'];
+	cause.pictures = dbCause['pictures'];
+	cause.deadline = dbCause['deadline'];
+	cause.goal = dbCause['goal'];
+	cause.bankInfo = null;
+
+	const donationForUser = new DonationForUser();
+	donationForUser.id = dbId as number;
+	donationForUser.timeCreated = req.requestTime;
+	donationForUser.forCause = cause;
+	donationForUser.amount = createDonationRequest.amount;
+
+	const userDonationResponse = new UserDonationResponse();
+	userDonationResponse.donation = donationForUser;
+
+	res.write(JSON.stringify(userDonationResponseMarshaller.pack(userDonationResponse)));
+        res.status(HttpStatus.CREATED);
         res.end();
     }));
 
