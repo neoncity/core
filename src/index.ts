@@ -218,7 +218,7 @@ async function main() {
 
 		dbCause = dbCauses[0];
 
-		dbId = await trx
+		const dbIds = await trx
 		      .from('core.donation')
 		      .returning('id')
 		      .insert({
@@ -227,6 +227,12 @@ async function main() {
 			  'user_id': (user as User).id,
 			  'amount': (createDonationRequest as CreateDonationRequest).amount
 		      });
+
+		if (dbIds.length == 0) {
+		    throw new Error('Failed to insert donation');
+		}
+
+		dbId = dbIds[0];
 	    });
 	} catch (e) {
 	    if (e.message == 'Cause does not exist') {
@@ -329,7 +335,7 @@ async function main() {
 
 		dbCause = dbCauses[0];
 
-		dbId = await trx
+		const dbIds = await trx
 		      .from('core.share')
 		      .returning('id')
 		      .insert({
@@ -337,6 +343,12 @@ async function main() {
 			  'cause_id': causeId,
 			  'user_id': (user as User).id
 		      });
+
+		if (dbIds.length == 0) {
+		    throw new Error('Failed to insert share');
+		}
+
+		dbId = dbIds[0];
 	    });
 	} catch (e) {
 	    if (e.message == 'Cause does not exist') {
@@ -421,7 +433,7 @@ async function main() {
 	// Create cause
 	let dbId: number|null = null;
 	try {
-	    dbId = await conn('core.cause')
+	    const dbIds = await conn('core.cause')
 		.returning('id')
 		.insert({
 		    'state': _causeStateToDbCauseState(CauseState.Active),
@@ -435,7 +447,13 @@ async function main() {
 		    'deadline': createCauseRequest.deadline,
 		    'goal': createCauseRequest.goal,
 		    'bank_info': createCauseRequest.bankInfo
-		}) as number;
+		}) as number[];
+
+	    if (dbIds.length == 0) {
+		throw new Error('Failed to insert cause');
+	    }
+
+	    dbId = dbIds[0];
 	} catch (e) {
 	    if (e.detail == 'Key (user_id)=(1) already exists.') {
 		console.log('Cause already exists for user');
