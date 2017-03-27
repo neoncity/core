@@ -6,9 +6,20 @@ import * as knex from 'knex'
 import { MarshalFrom } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
-import { Cause, CauseResponse, CausesResponse, CauseState, CreateCauseRequest,
-	 CreateDonationRequest, CreateShareRequest, DonationForUser, ShareForUser, UpdateCauseRequest,
-	 UserDonationResponse, UserShareResponse } from '@neoncity/core-sdk-js'
+import { CauseState,
+	 CreateCauseRequest,
+	 CreateDonationRequest,
+	 CreateShareRequest,
+	 DonationForUser,
+	 PublicCause,
+	 PublicCausesResponse,
+	 PublicCauseResponse,
+	 PrivateCause,
+	 PrivateCauseResponse,
+	 ShareForUser,
+	 UpdateCauseRequest,
+	 UserDonationResponse,
+	 UserShareResponse } from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
@@ -28,8 +39,9 @@ async function main() {
     const updateCauseRequestMarshaller = new (MarshalFrom(UpdateCauseRequest))();
     const createDonationRequestMarshaller = new (MarshalFrom(CreateDonationRequest))();
     const createShareRequestMarshaller = new (MarshalFrom(CreateShareRequest))();    
-    const causesResponseMarshaller = new (MarshalFrom(CausesResponse))();
-    const causeResponseMarshaller = new (MarshalFrom(CauseResponse))();
+    const publicCausesResponseMarshaller = new (MarshalFrom(PublicCausesResponse))();
+    const publicCauseResponseMarshaller = new (MarshalFrom(PublicCauseResponse))();
+    const privateCauseResponseMarshaller = new (MarshalFrom(PrivateCauseResponse))();
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
 
@@ -80,7 +92,7 @@ async function main() {
 	}
 
 	const causes = dbCauses.map((dbC: any) => {
-	    const cause = new Cause();
+	    const cause = new PublicCause();
 	    cause.id = dbC['id'];
 	    cause.state = _dbCauseStateToCauseState(dbC['state']);
 	    cause.timeCreated = new Date(dbC['time_created']);
@@ -90,15 +102,14 @@ async function main() {
 	    cause.pictures = dbC['pictures'];
 	    cause.deadline = dbC['deadline'];
 	    cause.goal = dbC['goal'];
-	    cause.bankInfo = null;
 
 	    return cause;
 	});
 
-	const causesResponse = new CausesResponse();
-	causesResponse.causes = causes;
+	const publicCausesResponse = new PublicCausesResponse();
+	publicCausesResponse.causes = causes;
 	
-        res.write(JSON.stringify(causesResponseMarshaller.pack(causesResponse)))
+        res.write(JSON.stringify(publicCausesResponseMarshaller.pack(publicCausesResponse)))
 	res.status(HttpStatus.OK);
         res.end();
     }));
@@ -136,7 +147,7 @@ async function main() {
 	    return;
 	}
 
-	const cause = new Cause();
+	const cause = new PublicCause();
 	cause.id = dbCause['id'];
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
@@ -146,12 +157,11 @@ async function main() {
 	cause.pictures = dbCause['pictures'];
 	cause.deadline = dbCause['deadline'];
 	cause.goal = dbCause['goal'];
-	cause.bankInfo = null;
 
-	const causeResponse = new CauseResponse();
-	causeResponse.cause = cause;
+	const publicCauseResponse = new PublicCauseResponse();
+	publicCauseResponse.cause = cause;
 		
-        res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)))
+        res.write(JSON.stringify(publicCauseResponseMarshaller.pack(publicCauseResponse)))
 	res.status(HttpStatus.OK);
         res.end();
     }));
@@ -247,7 +257,7 @@ async function main() {
 	    return;
 	}
 
-	const cause = new Cause();
+	const cause = new PublicCause();
 	cause.id = dbCause['id'];
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
@@ -257,7 +267,6 @@ async function main() {
 	cause.pictures = dbCause['pictures'];
 	cause.deadline = dbCause['deadline'];
 	cause.goal = dbCause['goal'];
-	cause.bankInfo = null;
 
 	const donationForUser = new DonationForUser();
 	donationForUser.id = dbId as number;
@@ -363,7 +372,7 @@ async function main() {
 	    return;
 	}
 
-	const cause = new Cause();
+	const cause = new PublicCause();
 	cause.id = dbCause['id'];
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
@@ -373,7 +382,6 @@ async function main() {
 	cause.pictures = dbCause['pictures'];
 	cause.deadline = dbCause['deadline'];
 	cause.goal = dbCause['goal'];
-	cause.bankInfo = null;
 
 	const shareForUser = new ShareForUser();
 	shareForUser.id = dbId as number;
@@ -468,7 +476,7 @@ async function main() {
 	}
 
 	// Return value.
-	const cause = new Cause();
+	const cause = new PrivateCause();
 	cause.id = dbId;
 	cause.state = CauseState.Active;
 	cause.timeCreated = req.requestTime;
@@ -480,10 +488,10 @@ async function main() {
 	cause.goal = createCauseRequest.goal;
 	cause.bankInfo = createCauseRequest.bankInfo;
 
-	const causeResponse = new CauseResponse();
-	causeResponse.cause = cause;
+	const privateCauseResponse = new PrivateCauseResponse();
+	privateCauseResponse.cause = cause;
 	
-        res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)));
+        res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));
 	res.status(HttpStatus.CREATED);
         res.end();
     }));
@@ -546,7 +554,7 @@ async function main() {
 	    return;
 	}
 
-	const cause = new Cause();
+	const cause = new PrivateCause();
 	cause.id = dbCause['id'];
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
@@ -558,10 +566,10 @@ async function main() {
 	cause.goal = dbCause['goal'];
 	cause.bankInfo = dbCause['bank_info'];
 
-	const causeResponse = new CauseResponse();
-	causeResponse.cause = cause;
+	const privateCauseResponse = new PrivateCauseResponse();
+	privateCauseResponse.cause = cause;
 		
-        res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)))
+        res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)))
 	res.status(HttpStatus.OK);
         res.end();
     }));
@@ -645,7 +653,7 @@ async function main() {
 	}
 
 	// Return value.
-	const cause = new Cause();
+	const cause = new PrivateCause();
 	cause.id = dbCause['id'];
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
@@ -657,10 +665,10 @@ async function main() {
 	cause.goal = dbCause['goal'];
 	cause.bankInfo = dbCause['bank_info'];
 
-	const causeResponse = new CauseResponse();
-	causeResponse.cause = cause;
+	const privateCauseResponse = new PrivateCauseResponse();
+	privateCauseResponse.cause = cause;
 	
-        res.write(JSON.stringify(causeResponseMarshaller.pack(causeResponse)));
+        res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));
 	res.status(HttpStatus.OK);
         res.end();
     }));
