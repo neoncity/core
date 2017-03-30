@@ -2,7 +2,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
     CREATE TABLE core.donation (
         id Serial,
         time_created Timestamp NOT NULL,
-        cause_id Int REFERENCES core.cause(id),
+        cause_id Int NOT NULL REFERENCES core.cause(id),
         user_id Int NOT NULL,
         amount Json NOT NULL,
 	PRIMARY KEY (id)
