@@ -3,7 +3,7 @@ import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
-import { MarshalFrom } from 'raynor'
+import { MarshalFrom, SlugMarshaller } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { CauseState,
@@ -23,6 +23,8 @@ import { CauseState,
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
+
+var slugify = require('slugify')
 
 
 async function main() {
@@ -44,6 +46,7 @@ async function main() {
     const privateCauseResponseMarshaller = new (MarshalFrom(PrivateCauseResponse))();
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
+    const slugMarshaller = new SlugMarshaller();
 
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS));
@@ -65,6 +68,7 @@ async function main() {
 	'user_id',
 	'time_created',
 	'time_last_updated',
+	'slugs',
 	'title',
 	'description',
 	'pictures',
@@ -91,12 +95,14 @@ async function main() {
 	    return;
 	}
 
+
 	const causes = dbCauses.map((dbC: any) => {
 	    const cause = new PublicCause();
 	    cause.id = dbC['id'];
 	    cause.state = _dbCauseStateToCauseState(dbC['state']);
 	    cause.timeCreated = new Date(dbC['time_created']);
 	    cause.timeLastUpdated = new Date(dbC['time_last_updated']);
+	    cause.slug = _latestSlug(dbC['slugs'].slugs);
 	    cause.title = dbC['title'];
 	    cause.description = dbC['description'];
 	    cause.pictures = dbC['pictures'];
@@ -152,6 +158,7 @@ async function main() {
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
 	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.slug = _latestSlug(dbCause['slugs'].slugs);
 	cause.title = dbCause['title'];
 	cause.description = dbCause['description'];
 	cause.pictures = dbCause['pictures'];
@@ -262,6 +269,7 @@ async function main() {
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
 	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.slug = _latestSlug(dbCause['slugs'].slugs);
 	cause.title = dbCause['title'];
 	cause.description = dbCause['description'];
 	cause.pictures = dbCause['pictures'];
@@ -377,6 +385,7 @@ async function main() {
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
 	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.slug = _latestSlug(dbCause['slugs'].slugs);
 	cause.title = dbCause['title'];
 	cause.description = dbCause['description'];
 	cause.pictures = dbCause['pictures'];
@@ -438,6 +447,20 @@ async function main() {
 	// Check deadline is appropriate.
 	// TODO: do it
 
+	// Create slug.
+	const slug = slugify(createCauseRequest.title.toLowerCase());
+
+	try {
+	    slugMarshaller.extract(slug);
+	} catch (e) {
+	    console.log('Title cannot be slugified');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	const slugs = {slugs: [{slug: slug, timeCreated: req.requestTime.getTime()}]};
+
 	// Create cause
 	let dbId: number|null = null;
 	try {
@@ -449,6 +472,7 @@ async function main() {
 		    'time_created': req.requestTime,
 		    'time_last_updated': req.requestTime,
 		    'time_removed': null,
+		    'slugs': slugs,
 		    'title': createCauseRequest.title,
 		    'description': createCauseRequest.description,
 		    'pictures': createCauseRequest.pictures,
@@ -481,6 +505,7 @@ async function main() {
 	cause.state = CauseState.Active;
 	cause.timeCreated = req.requestTime;
 	cause.timeLastUpdated = req.requestTime;
+	cause.slug = slug;
 	cause.title = createCauseRequest.title;
 	cause.description = createCauseRequest.description;
 	cause.pictures = createCauseRequest.pictures;
@@ -559,6 +584,7 @@ async function main() {
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
 	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.slug = _latestSlug(dbCause['slugs'].slugs);
 	cause.title = dbCause['title'];
 	cause.description = dbCause['description'];
 	cause.pictures = dbCause['pictures'];
@@ -658,6 +684,7 @@ async function main() {
 	cause.state = _dbCauseStateToCauseState(dbCause['state']);
 	cause.timeCreated = new Date(dbCause['time_created']);
 	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
+	cause.slug = _latestSlug(dbCause['slugs'].slugs);
 	cause.title = dbCause['title'];
 	cause.description = dbCause['description'];
 	cause.pictures = dbCause['pictures'];
@@ -741,6 +768,25 @@ async function main() {
     app.listen(config.PORT, config.ADDRESS, () => {
 	console.log(`Started core service on ${config.ADDRESS}:${config.PORT}`);
     });
+}
+
+
+function _latestSlug(slugs: any[]): string {
+    if (slugs.length == 0) {
+	throw new Error('Should have some slugs');
+    }
+
+    let latestSlug = slugs[0].slug;
+    let latestSlugTime = slugs[0].timeCreated;
+
+    for (let i = 1; i < slugs.length; i++) {
+	if (slugs[i].timeCreated > latestSlugTime) {
+	    latestSlug = slugs[i].slug;
+	    latestSlugTime = slugs[i].timeCreated;
+	}
+    }
+
+    return latestSlug;
 }
 
 

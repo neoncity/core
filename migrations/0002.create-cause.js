@@ -8,12 +8,13 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         time_created Timestamp NOT NULL,
         time_last_updated Timestamp NOT NULL,
         time_removed Timestamp NULL,
+        slugs Jsonb NOT NULL,
         title VarChar(128) NOT NULL,
         description Text NOT NULL,
-        pictures Json NOT NULL,
+        pictures Jsonb NOT NULL,
         deadline Timestamp NOT NULL,
-        goal Json NOT NULL,
-	bank_info Json NOT NULL,
+        goal Jsonb NOT NULL,
+	bank_info Jsonb NOT NULL,
 	PRIMARY KEY (id)
     );
 
