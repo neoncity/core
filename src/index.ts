@@ -6,7 +6,8 @@ import * as knex from 'knex'
 import { MarshalFrom, SlugMarshaller } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
-import { CauseState,
+import { ActionsOverviewResponse,
+	 CauseState,
 	 CreateCauseRequest,
 	 CreateDonationRequest,
 	 CreateShareRequest,
@@ -18,6 +19,7 @@ import { CauseState,
 	 PrivateCauseResponse,
 	 ShareForUser,
 	 UpdateCauseRequest,
+	 UserActionsOverview,
 	 UserDonationResponse,
 	 UserShareResponse} from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
@@ -46,6 +48,7 @@ async function main() {
     const privateCauseResponseMarshaller = new (MarshalFrom(PrivateCauseResponse))();
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
+    const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
     const slugMarshaller = new SlugMarshaller();
 
     app.use(newRequestTimeMiddleware());
@@ -54,21 +57,36 @@ async function main() {
     app.use(bodyParser.json());
     
     const causePublicFields = [
-	'id',
-	'state',
-	'user_id',
-	'time_created',
-	'time_last_updated',
-	'slugs',
-	'title',
-	'description',
-	'pictures',
-	'deadline',
-	'goal'
+	'core.cause.id as cause_id',
+	'core.cause.state as cause_state',
+	'core.cause.user_id as cause_user_id',
+	'core.cause.time_created as cause_time_created',
+	'core.cause.time_last_updated as cause_time_last_updated',
+	'core.cause.slugs as cause_slugs',
+	'core.cause.title as cause_title',
+	'core.cause.description as cause_description',
+	'core.cause.pictures as cause_pictures',
+	'core.cause.deadline as cause_deadline',
+	'core.cause.goal as cause_goal'
     ];
 
     const causePrivateFields = causePublicFields.slice();
-    causePrivateFields.push('bank_info');
+    causePrivateFields.push('core.cause.bank_info as cause_bank_info');
+
+    const donationFields = [
+	'core.donation.id as donation_id',
+	'core.donation.time_created as donation_time_created',
+	'core.donation.cause_id as donation_cause_id',
+	'core.donation.user_id as donation_user_id',
+	'core.donation.amount as donation_amount'
+    ];
+
+    const shareFields = [
+	'core.share.id as share_id',
+	'core.share.time_created as share_time_created',
+	'core.share.cause_id as share_cause_id',
+	'core.share.user_id as share_user_id'
+    ];
 
     const publicCausesRouter = express.Router();
 
@@ -89,16 +107,16 @@ async function main() {
 
 	const causes = dbCauses.map((dbC: any) => {
 	    const cause = new PublicCause();
-	    cause.id = dbC['id'];
-	    cause.state = _dbCauseStateToCauseState(dbC['state']);
-	    cause.timeCreated = new Date(dbC['time_created']);
-	    cause.timeLastUpdated = new Date(dbC['time_last_updated']);
-	    cause.slug = _latestSlug(dbC['slugs'].slugs);
-	    cause.title = dbC['title'];
-	    cause.description = dbC['description'];
-	    cause.pictures = dbC['pictures'];
-	    cause.deadline = dbC['deadline'];
-	    cause.goal = dbC['goal'];
+	    cause.id = dbC['cause_id'];
+	    cause.state = _dbCauseStateToCauseState(dbC['cause_state']);
+	    cause.timeCreated = new Date(dbC['cause_time_created']);
+	    cause.timeLastUpdated = new Date(dbC['cause_time_last_updated']);
+	    cause.slug = _latestSlug(dbC['cause_slugs'].slugs);
+	    cause.title = dbC['cause_title'];
+	    cause.description = dbC['cause_description'];
+	    cause.pictures = dbC['cause_pictures'];
+	    cause.deadline = dbC['cause_deadline'];
+	    cause.goal = dbC['cause_goal'];
 
 	    return cause;
 	});
@@ -145,16 +163,16 @@ async function main() {
 	}
 
 	const cause = new PublicCause();
-	cause.id = dbCause['id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['state']);
-	cause.timeCreated = new Date(dbCause['time_created']);
-	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
-	cause.slug = _latestSlug(dbCause['slugs'].slugs);
-	cause.title = dbCause['title'];
-	cause.description = dbCause['description'];
-	cause.pictures = dbCause['pictures'];
-	cause.deadline = dbCause['deadline'];
-	cause.goal = dbCause['goal'];
+	cause.id = dbCause['cause_id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
+	cause.title = dbCause['cause_title'];
+	cause.description = dbCause['cause_description'];
+	cause.pictures = dbCause['cause_pictures'];
+	cause.deadline = dbCause['cause_deadline'];
+	cause.goal = dbCause['cause_goal'];
 
 	const publicCauseResponse = new PublicCauseResponse();
 	publicCauseResponse.cause = cause;
@@ -256,16 +274,16 @@ async function main() {
 	}
 
 	const cause = new PublicCause();
-	cause.id = dbCause['id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['state']);
-	cause.timeCreated = new Date(dbCause['time_created']);
-	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
-	cause.slug = _latestSlug(dbCause['slugs'].slugs);
-	cause.title = dbCause['title'];
-	cause.description = dbCause['description'];
-	cause.pictures = dbCause['pictures'];
-	cause.deadline = dbCause['deadline'];
-	cause.goal = dbCause['goal'];
+	cause.id = dbCause['cause_id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
+	cause.title = dbCause['cause_title'];
+	cause.description = dbCause['cause_description'];
+	cause.pictures = dbCause['cause_pictures'];
+	cause.deadline = dbCause['cause_deadline'];
+	cause.goal = dbCause['cause_goal'];
 
 	const donationForUser = new DonationForUser();
 	donationForUser.id = dbId as number;
@@ -372,16 +390,16 @@ async function main() {
 	}
 
 	const cause = new PublicCause();
-	cause.id = dbCause['id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['state']);
-	cause.timeCreated = new Date(dbCause['time_created']);
-	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
-	cause.slug = _latestSlug(dbCause['slugs'].slugs);
-	cause.title = dbCause['title'];
-	cause.description = dbCause['description'];
-	cause.pictures = dbCause['pictures'];
-	cause.deadline = dbCause['deadline'];
-	cause.goal = dbCause['goal'];
+	cause.id = dbCause['cause_id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
+	cause.title = dbCause['cause_title'];
+	cause.description = dbCause['cause_description'];
+	cause.pictures = dbCause['cause_pictures'];
+	cause.deadline = dbCause['cause_deadline'];
+	cause.goal = dbCause['cause_goal'];
 
 	const shareForUser = new ShareForUser();
 	shareForUser.id = dbId as number;
@@ -561,17 +579,17 @@ async function main() {
 	}
 
 	const cause = new PrivateCause();
-	cause.id = dbCause['id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['state']);
-	cause.timeCreated = new Date(dbCause['time_created']);
-	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
-	cause.slug = _latestSlug(dbCause['slugs'].slugs);
-	cause.title = dbCause['title'];
-	cause.description = dbCause['description'];
-	cause.pictures = dbCause['pictures'];
-	cause.deadline = dbCause['deadline'];
-	cause.goal = dbCause['goal'];
-	cause.bankInfo = dbCause['bank_info'];
+	cause.id = dbCause['cause_id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
+	cause.title = dbCause['cause_title'];
+	cause.description = dbCause['cause_description'];
+	cause.pictures = dbCause['cause_pictures'];
+	cause.deadline = dbCause['cause_deadline'];
+	cause.goal = dbCause['cause_goal'];
+	cause.bankInfo = dbCause['cause_bank_info'];
 
 	const privateCauseResponse = new PrivateCauseResponse();
 	privateCauseResponse.cause = cause;
@@ -650,17 +668,17 @@ async function main() {
 
 	// Return value.
 	const cause = new PrivateCause();
-	cause.id = dbCause['id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['state']);
-	cause.timeCreated = new Date(dbCause['time_created']);
-	cause.timeLastUpdated = new Date(dbCause['time_last_updated']);
-	cause.slug = _latestSlug(dbCause['slugs'].slugs);
-	cause.title = dbCause['title'];
-	cause.description = dbCause['description'];
-	cause.pictures = dbCause['pictures'];
-	cause.deadline = dbCause['deadline'];
-	cause.goal = dbCause['goal'];
-	cause.bankInfo = dbCause['bank_info'];
+	cause.id = dbCause['cause_id'];
+	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
+	cause.title = dbCause['cause_title'];
+	cause.description = dbCause['cause_description'];
+	cause.pictures = dbCause['cause_pictures'];
+	cause.deadline = dbCause['cause_deadline'];
+	cause.goal = dbCause['cause_goal'];
+	cause.bankInfo = dbCause['cause_bank_info'];
 
 	const privateCauseResponse = new PrivateCauseResponse();
 	privateCauseResponse.cause = cause;
@@ -722,8 +740,113 @@ async function main() {
         res.end();
     }));
 
+    const privateActionsOverviewRouter = express.Router();
+
+    privateActionsOverviewRouter.get('/', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+		console.log('User is unauthorized');
+		res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+		console.log(`Call to identity service failed - ${e.toString()}`);
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	// Retrieve donations and shares.
+	let dbDonations: any[]|null = null;
+	let dbShares: any[]|null = null;
+	try {
+	    dbDonations = await conn('core.donation')
+		.join('core.cause', 'core.donation.cause_id', '=', 'core.cause.id')
+		.where({'core.donation.user_id': user.id})
+		.select(donationFields.concat(causePublicFields)) as any[];
+
+	    dbShares = await conn('core.share')
+		.join('core.cause', 'core.share.cause_id', '=', 'core.cause.id')
+		.where({'core.share.user_id': user.id})
+		.select(shareFields.concat(causePublicFields)) as any[];
+	} catch (e) {
+	    console.log(`DB read error - ${e.toString()}`);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    res.end();
+	    return;
+	}
+
+	// Return value.
+	const donations = dbDonations.map((dbD) => {
+	    const cause = new PublicCause();
+	    cause.id = dbD['cause_id'];
+	    cause.state = _dbCauseStateToCauseState(dbD['cause_state']);
+	    cause.timeCreated = new Date(dbD['cause_time_created']);
+	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
+	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
+	    cause.title = dbD['cause_title'];
+	    cause.description = dbD['cause_description'];
+	    cause.pictures = dbD['cause_pictures'];
+	    cause.deadline = dbD['cause_deadline'];
+	    cause.goal = dbD['cause_goal'];
+
+	    const donationForUser = new DonationForUser();
+	    donationForUser.id = dbD['donation_id'];
+	    donationForUser.timeCreated = dbD['donation_time_created'];
+	    donationForUser.forCause = cause;
+	    donationForUser.amount = dbD['donation_amount'];
+
+	    return donationForUser;
+	});
+
+	const shares = dbShares.map((dbD) => {
+	    const cause = new PublicCause();
+	    cause.id = dbD['cause_id'];
+	    cause.state = _dbCauseStateToCauseState(dbD['cause_state']);
+	    cause.timeCreated = new Date(dbD['cause_time_created']);
+	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
+	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
+	    cause.title = dbD['cause_title'];
+	    cause.description = dbD['cause_description'];
+	    cause.pictures = dbD['cause_pictures'];
+	    cause.deadline = dbD['cause_deadline'];
+	    cause.goal = dbD['cause_goal'];
+
+	    const shareForUser = new ShareForUser();
+	    shareForUser.id = dbD['share_id'];
+	    shareForUser.timeCreated = dbD['share_time_created'];
+	    shareForUser.forCause = cause;
+
+	    return shareForUser;
+	});	
+
+	const userActionsOverview = new UserActionsOverview();
+	userActionsOverview.donations = donations;
+	userActionsOverview.shares = shares;
+
+	const actionsOverviewResponse = new ActionsOverviewResponse();
+	actionsOverviewResponse.actionsOverview = userActionsOverview;
+
+	res.write(JSON.stringify(actionsOverviewResponseMarshaller.pack(actionsOverviewResponse)));
+	res.status(HttpStatus.OK);
+	res.end();
+    }));
+
     app.use('/public/causes', publicCausesRouter);
     app.use('/private/causes', privateCausesRouter);
+    app.use('/private/actions-overview', privateActionsOverviewRouter);
 
     app.listen(config.PORT, config.ADDRESS, () => {
 	console.log(`Started core service on ${config.ADDRESS}:${config.PORT}`);
