@@ -19,7 +19,7 @@ import { CauseState,
 	 ShareForUser,
 	 UpdateCauseRequest,
 	 UserDonationResponse,
-	 UserShareResponse } from '@neoncity/core-sdk-js'
+	 UserShareResponse} from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
@@ -53,15 +53,6 @@ async function main() {
     app.use(newAuthInfoMiddleware());
     app.use(bodyParser.json());
     
-    // The API is:
-    // GET /causes - retrieves a selection of interesting causes. Tailored to the current user, but can be unauthed.
-    // POST /causes - create a new cause. Must be a registered user.
-    // GET /causes/:causeId - retrieves a particular cause. Tailored to the current user, but can be anauthed.
-    // PUT /causes/:causeId - update something for the particular cause. Must be a registered user and the owner of the cause.
-    // DELETE /causes/:causeId - remove the cause. Must be a registered user and the owner of the cause.
-    // POST /causes/:causeId/donations - record that a donation has been made by a user for this cause.
-    // POST /causes/:causeId/shares - share that a share has been made by a user for this cause.
-
     const causePublicFields = [
 	'id',
 	'state',
@@ -79,9 +70,9 @@ async function main() {
     const causePrivateFields = causePublicFields.slice();
     causePrivateFields.push('bank_info');
 
-    const causesPublicRouter = express.Router();
+    const publicCausesRouter = express.Router();
 
-    causesPublicRouter.get('/', wrap(async (_: Request, res: express.Response) => {
+    publicCausesRouter.get('/', wrap(async (_: Request, res: express.Response) => {
 	let dbCauses: any[]|null = null;
 	try {
 	    dbCauses = await conn('core.cause')
@@ -120,7 +111,7 @@ async function main() {
         res.end();
     }));
 
-    causesPublicRouter.get('/:causeId', wrap(async (req: Request, res: express.Response) => {
+    publicCausesRouter.get('/:causeId', wrap(async (req: Request, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -173,7 +164,7 @@ async function main() {
         res.end();
     }));
 
-    causesPublicRouter.post('/:causeId/donations', wrap(async (req: Request, res: express.Response) => {
+    publicCausesRouter.post('/:causeId/donations', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
 	    res.status(HttpStatus.BAD_REQUEST);
@@ -290,7 +281,7 @@ async function main() {
         res.end();
     }));
 
-    causesPublicRouter.post('/:causeId/shares', wrap(async (req: Request, res: express.Response) => {
+    publicCausesRouter.post('/:causeId/shares', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
 	    res.status(HttpStatus.BAD_REQUEST);
@@ -405,9 +396,9 @@ async function main() {
         res.end();
     }));
 
-    const causesPrivateRouter = express.Router();
+    const privateCausesRouter = express.Router();
 
-    causesPrivateRouter.post('/', wrap(async (req: Request, res: express.Response) => {
+    privateCausesRouter.post('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
 	    res.status(HttpStatus.BAD_REQUEST);
@@ -521,7 +512,7 @@ async function main() {
         res.end();
     }));
 
-    causesPrivateRouter.get('/:causeId', wrap(async (req: Request, res: express.Response) => {
+    privateCausesRouter.get('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
 	    res.status(HttpStatus.BAD_REQUEST);
@@ -529,16 +520,6 @@ async function main() {
 	    return;
 	}
         
-	// Parse request data.
-	const causeId = parseInt(req.params['causeId']);
-
-	if (isNaN(causeId)) {
-	    console.log('Invalid cause id');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
 	// Make a call to the identity service to retrieve the user.
 	let user: User|null = null;
 	try {
@@ -561,7 +542,7 @@ async function main() {
 	try {
 	    const dbCauses = await conn('core.cause')
 		  .select(causePrivateFields)
-		  .where({id: causeId, user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .where({user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
 		  .limit(1);
 
 	    if (dbCauses.length == 0) {
@@ -600,19 +581,9 @@ async function main() {
         res.end();
     }));
 
-    causesPrivateRouter.put('/:causeId', wrap(async (req: Request, res: express.Response) => {
+    privateCausesRouter.put('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Parse request data.
-	const causeId = parseInt(req.params['causeId']);
-
-	if (isNaN(causeId)) {
-	    console.log('Invalid cause id');
 	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
@@ -653,13 +624,12 @@ async function main() {
 	for (let prop of Object.keys(updateCauseRequest)) {
 	    updateDict[_nameToDbName(prop)] = (updateCauseRequest as any)[prop];
 	}
-	console.log(updateDict);
 
 	// Update the cause of this user.
 	let dbCause: any|null = null;
 	try {
 	    const dbCauses = await conn('core.cause')
-		  .where({id: causeId, user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .where({user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
 		  .returning(causePrivateFields)
 		  .update(updateDict) as any[];
 
@@ -700,19 +670,9 @@ async function main() {
         res.end();
     }));
 
-    causesPrivateRouter.delete('/:causeId', wrap(async (req: Request, res: express.Response) => {
+    privateCausesRouter.delete('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Parse request data.
-	const causeId = parseInt(req.params['causeId']);
-
-	if (isNaN(causeId)) {
-	    console.log('Invalid cause id');
 	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
@@ -739,7 +699,7 @@ async function main() {
 	// Mark the cause of this user as deleted.
 	try {
 	    const dbIds = await conn('core.cause')
-		  .where({id: causeId, user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .where({user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
 		  .update({
 		      'state': _causeStateToDbCauseState(CauseState.Removed),
 		      'time_removed': req.requestTime
@@ -762,8 +722,8 @@ async function main() {
         res.end();
     }));
 
-    app.use('/causes/public', causesPublicRouter);
-    app.use('/causes/private', causesPrivateRouter);
+    app.use('/public/causes', publicCausesRouter);
+    app.use('/private/causes', privateCausesRouter);
 
     app.listen(config.PORT, config.ADDRESS, () => {
 	console.log(`Started core service on ${config.ADDRESS}:${config.PORT}`);
