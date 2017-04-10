@@ -23,10 +23,9 @@ import { ActionsOverviewResponse,
 	 UserDonationResponse,
 	 UserShareResponse} from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
+import { slugify } from '@neoncity/common-js/slugify'
 
 import * as config from './config'
-
-var slugify = require('slugify')
 
 
 async function main() {
@@ -457,7 +456,7 @@ async function main() {
 	// TODO: do it
 
 	// Create slug.
-	const slug = slugify(createCauseRequest.title.toLowerCase());
+	const slug = slugify(createCauseRequest.title);
 
 	try {
 	    slugMarshaller.extract(slug);

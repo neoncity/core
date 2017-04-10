@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -27,7 +27,7 @@
     "tsconfig.json": "f:tsconfig.json"
   },
   "dependencies": {
-    "@neoncity/common-js": "=1.0.0",
+    "@neoncity/common-js": "=1.1.0",
     "@neoncity/common-server-js": "=0.2.1",
     "@neoncity/core-sdk-js": "=3.0.0",
     "@neoncity/identity-sdk-js": "=1.2.3",
@@ -38,8 +38,7 @@
     "http-status-codes": "=1.1.6",
     "knex": "=0.12.6",
     "pg": "=6.1.2",
-    "raynor": "=0.3.0",
-    "slugify": "=1.1.0"
+    "raynor": "=0.3.0"
   },
   "devDependencies": {
     "@neoncity/togemfury": "=0.0.9",
