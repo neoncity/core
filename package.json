@@ -28,8 +28,8 @@
   },
   "dependencies": {
     "@neoncity/common-js": "=1.1.0",
-    "@neoncity/common-server-js": "=0.2.1",
-    "@neoncity/core-sdk-js": "=3.0.0",
+    "@neoncity/common-server-js": "=0.2.4",
+    "@neoncity/core-sdk-js": "=3.1.1",
     "@neoncity/identity-sdk-js": "=1.2.3",
     "async-middleware": "=1.0.2",
     "body-parser": "=1.17.1",
