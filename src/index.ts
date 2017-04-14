@@ -11,6 +11,7 @@ import { ActionsOverviewResponse,
 	 CreateCauseRequest,
 	 CreateDonationRequest,
 	 CreateShareRequest,
+	 CurrencyAmount,
 	 DonationForUser,
 	 PublicCause,
 	 PublicCausesResponse,
@@ -48,6 +49,7 @@ async function main() {
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
     const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
+    const currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
     const slugMarshaller = new SlugMarshaller();
 
     app.use(newRequestTimeMiddleware());
@@ -115,7 +117,7 @@ async function main() {
 	    cause.description = dbC['cause_description'];
 	    cause.pictures = dbC['cause_pictures'];
 	    cause.deadline = dbC['cause_deadline'];
-	    cause.goal = dbC['cause_goal'];
+	    cause.goal = currencyAmountMarshaller.extract(dbC['cause_goal']);
 
 	    return cause;
 	});
@@ -171,7 +173,7 @@ async function main() {
 	cause.description = dbCause['cause_description'];
 	cause.pictures = dbCause['cause_pictures'];
 	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = dbCause['cause_goal'];
+	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
 	const publicCauseResponse = new PublicCauseResponse();
 	publicCauseResponse.cause = cause;
@@ -282,7 +284,7 @@ async function main() {
 	cause.description = dbCause['cause_description'];
 	cause.pictures = dbCause['cause_pictures'];
 	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = dbCause['cause_goal'];
+	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
 	const donationForUser = new DonationForUser();
 	donationForUser.id = dbId as number;
@@ -398,7 +400,7 @@ async function main() {
 	cause.description = dbCause['cause_description'];
 	cause.pictures = dbCause['cause_pictures'];
 	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = dbCause['cause_goal'];
+	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
 	const shareForUser = new ShareForUser();
 	shareForUser.id = dbId as number;
@@ -485,7 +487,7 @@ async function main() {
 		    'description': createCauseRequest.description,
 		    'pictures': createCauseRequest.pictures,
 		    'deadline': createCauseRequest.deadline,
-		    'goal': createCauseRequest.goal,
+		    'goal': currencyAmountMarshaller.pack(createCauseRequest.goal),
 		    'bank_info': createCauseRequest.bankInfo
 		}) as number[];
 
@@ -587,12 +589,12 @@ async function main() {
 	cause.description = dbCause['cause_description'];
 	cause.pictures = dbCause['cause_pictures'];
 	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = dbCause['cause_goal'];
+	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 	cause.bankInfo = dbCause['cause_bank_info'];
 
 	const privateCauseResponse = new PrivateCauseResponse();
 	privateCauseResponse.cause = cause;
-		
+
         res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)))
 	res.status(HttpStatus.OK);
         res.end();
@@ -676,7 +678,7 @@ async function main() {
 	cause.description = dbCause['cause_description'];
 	cause.pictures = dbCause['cause_pictures'];
 	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = dbCause['cause_goal'];
+	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 	cause.bankInfo = dbCause['cause_bank_info'];
 
 	const privateCauseResponse = new PrivateCauseResponse();
@@ -799,7 +801,7 @@ async function main() {
 	    cause.description = dbD['cause_description'];
 	    cause.pictures = dbD['cause_pictures'];
 	    cause.deadline = dbD['cause_deadline'];
-	    cause.goal = dbD['cause_goal'];
+	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
 
 	    const donationForUser = new DonationForUser();
 	    donationForUser.id = dbD['donation_id'];
@@ -821,7 +823,7 @@ async function main() {
 	    cause.description = dbD['cause_description'];
 	    cause.pictures = dbD['cause_pictures'];
 	    cause.deadline = dbD['cause_deadline'];
-	    cause.goal = dbD['cause_goal'];
+	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
 
 	    const shareForUser = new ShareForUser();
 	    shareForUser.id = dbD['share_id'];
