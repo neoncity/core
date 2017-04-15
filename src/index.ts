@@ -3,16 +3,18 @@ import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
-import { MarshalFrom, SlugMarshaller } from 'raynor'
+import { ArrayOf, MarshalFrom, MarshalWith, SlugMarshaller } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { ActionsOverviewResponse,
+         BankInfo,
 	 CauseState,
 	 CreateCauseRequest,
 	 CreateDonationRequest,
 	 CreateShareRequest,
 	 CurrencyAmount,
 	 DonationForUser,
+         Picture,
 	 PublicCause,
 	 PublicCausesResponse,
 	 PublicCauseResponse,
@@ -27,6 +29,12 @@ import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-
 import { slugify } from '@neoncity/common-js/slugify'
 
 import * as config from './config'
+
+
+class StoragePictures {
+    @MarshalWith(ArrayOf(MarshalFrom(Picture)))
+    pictures: Picture[];
+}
 
 
 async function main() {
@@ -49,7 +57,9 @@ async function main() {
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
     const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
+    const picturesMarshaller = new (MarshalFrom(StoragePictures))();
     const currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
+    const bankInfoMarshaller = new (MarshalFrom(BankInfo))();
     const slugMarshaller = new SlugMarshaller();
 
     app.use(newRequestTimeMiddleware());
@@ -98,13 +108,13 @@ async function main() {
 		.select(causePublicFields)
 		.where({state: 'active'})
 		.orderBy('time_created', 'desc') as any[];
+            console.log(dbCauses);
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
 	}
-
 
 	const causes = dbCauses.map((dbC: any) => {
 	    const cause = new PublicCause();
@@ -115,7 +125,7 @@ async function main() {
 	    cause.slug = _latestSlug(dbC['cause_slugs'].slugs);
 	    cause.title = dbC['cause_title'];
 	    cause.description = dbC['cause_description'];
-	    cause.pictures = dbC['cause_pictures'];
+	    cause.pictures = picturesMarshaller.extract(dbC['cause_pictures']).pictures;
 	    cause.deadline = dbC['cause_deadline'];
 	    cause.goal = currencyAmountMarshaller.extract(dbC['cause_goal']);
 
@@ -156,6 +166,7 @@ async function main() {
 	    }
 
 	    dbCause = dbCauses[0];
+            console.log(dbCause);
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -171,7 +182,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = dbCause['cause_pictures'];
+	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
@@ -260,6 +271,7 @@ async function main() {
 		}
 
 		dbId = dbIds[0];
+                console.log(dbCause);
 	    });
 	} catch (e) {
 	    if (e.message == 'Cause does not exist') {
@@ -282,7 +294,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = dbCause['cause_pictures'];
+	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
@@ -398,7 +410,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = dbCause['cause_pictures'];
+	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
@@ -474,6 +486,9 @@ async function main() {
 	// Create cause
 	let dbId: number|null = null;
 	try {
+            const storagePictures = new StoragePictures();
+            storagePictures.pictures = createCauseRequest.pictures;
+            
 	    const dbIds = await conn('core.cause')
 		.returning('id')
 		.insert({
@@ -485,10 +500,10 @@ async function main() {
 		    'slugs': slugs,
 		    'title': createCauseRequest.title,
 		    'description': createCauseRequest.description,
-		    'pictures': createCauseRequest.pictures,
+		    'pictures': picturesMarshaller.pack(storagePictures),
 		    'deadline': createCauseRequest.deadline,
 		    'goal': currencyAmountMarshaller.pack(createCauseRequest.goal),
-		    'bank_info': createCauseRequest.bankInfo
+		    'bank_info': bankInfoMarshaller.pack(createCauseRequest.bankInfo)
 		}) as number[];
 
 	    if (dbIds.length == 0) {
@@ -579,6 +594,8 @@ async function main() {
 	    return;
 	}
 
+        console.log(dbCause);
+
 	const cause = new PrivateCause();
 	cause.id = dbCause['cause_id'];
 	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
@@ -587,10 +604,10 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = dbCause['cause_pictures'];
+	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-	cause.bankInfo = dbCause['cause_bank_info'];
+	cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
 
 	const privateCauseResponse = new PrivateCauseResponse();
 	privateCauseResponse.cause = cause;
@@ -639,10 +656,36 @@ async function main() {
 	// TODO: verify deadlline is OK.
 
 	// TODO: improve typing here.
-	const updateDict: any = {};
-	for (let prop of Object.keys(updateCauseRequest)) {
-	    updateDict[_nameToDbName(prop)] = (updateCauseRequest as any)[prop];
-	}
+
+	const updateDict: any = {
+            'time_last_updated': req.requestTime
+        };
+
+        if (updateCauseRequest.hasOwnProperty('title')) {
+            updateDict['title'] = updateCauseRequest.title;
+        }
+
+        if (updateCauseRequest.hasOwnProperty('description')) {
+            updateDict['description'] = updateCauseRequest.description;
+        }
+
+        if (updateCauseRequest.hasOwnProperty('pictures')) {
+            const storagePictures = new StoragePictures();
+            storagePictures.pictures = (updateCauseRequest.pictures) as Picture[];
+            updateDict['pictures'] = picturesMarshaller.pack(storagePictures);
+        }
+
+        if (updateCauseRequest.hasOwnProperty('deadline')) {
+            updateDict['deadline'] = updateCauseRequest.deadline;
+        }
+
+        if (updateCauseRequest.hasOwnProperty('goal')) {
+            updateDict['goal'] = currencyAmountMarshaller.pack(updateCauseRequest.goal as CurrencyAmount);
+        }
+
+        if (updateCauseRequest.hasOwnProperty('bankInfo')) {
+            updateDict['bank_info'] = bankInfoMarshaller.pack(updateCauseRequest.bankInfo as BankInfo);
+        }
 
 	// Update the cause of this user.
 	let dbCause: any|null = null;
@@ -676,10 +719,10 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = dbCause['cause_pictures'];
+	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-	cause.bankInfo = dbCause['cause_bank_info'];
+	cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
 
 	const privateCauseResponse = new PrivateCauseResponse();
 	privateCauseResponse.cause = cause;
@@ -799,7 +842,7 @@ async function main() {
 	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
 	    cause.title = dbD['cause_title'];
 	    cause.description = dbD['cause_description'];
-	    cause.pictures = dbD['cause_pictures'];
+	    cause.pictures = picturesMarshaller.extract(dbD['cause_pictures']).pictures;
 	    cause.deadline = dbD['cause_deadline'];
 	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
 
@@ -821,7 +864,7 @@ async function main() {
 	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
 	    cause.title = dbD['cause_title'];
 	    cause.description = dbD['cause_description'];
-	    cause.pictures = dbD['cause_pictures'];
+	    cause.pictures = picturesMarshaller.extract(dbD['cause_pictures']).pictures;
 	    cause.deadline = dbD['cause_deadline'];
 	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
 
@@ -896,15 +939,6 @@ function _dbCauseStateToCauseState(dbCauseState: 'active'|'succeeded'|'removed')
 	return CauseState.Succeeded;
     case 'removed':
 	return CauseState.Removed;
-    }
-}
-
-
-function _nameToDbName(prop: string): string {
-    if (prop == 'bankInfo') {
-	return 'bank_info';
-    } else {
-	return prop;
     }
 }
 
