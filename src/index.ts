@@ -108,7 +108,6 @@ async function main() {
 		.select(causePublicFields)
 		.where({state: 'active'})
 		.orderBy('time_created', 'desc') as any[];
-            console.log(dbCauses);
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -166,7 +165,6 @@ async function main() {
 	    }
 
 	    dbCause = dbCauses[0];
-            console.log(dbCause);
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
@@ -271,7 +269,6 @@ async function main() {
 		}
 
 		dbId = dbIds[0];
-                console.log(dbCause);
 	    });
 	} catch (e) {
 	    if (e.message == 'Cause does not exist') {
@@ -593,8 +590,6 @@ async function main() {
 	    res.end();
 	    return;
 	}
-
-        console.log(dbCause);
 
 	const cause = new PrivateCause();
 	cause.id = dbCause['cause_id'];
