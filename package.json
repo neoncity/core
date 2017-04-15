@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "2.3.4",
+  "version": "2.3.5",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -29,8 +29,8 @@
   "dependencies": {
     "@neoncity/common-js": "=1.3.0",
     "@neoncity/common-server-js": "=0.2.4",
-    "@neoncity/core-sdk-js": "=3.2.0",
-    "@neoncity/identity-sdk-js": "=1.2.3",
+    "@neoncity/core-sdk-js": "=3.3.1",
+    "@neoncity/identity-sdk-js": "=1.2.4",
     "async-middleware": "=1.0.2",
     "body-parser": "=1.17.1",
     "es6-promise": "=4.0.5",
