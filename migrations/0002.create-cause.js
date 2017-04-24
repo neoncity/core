@@ -11,7 +11,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         slugs Jsonb NOT NULL,
         title VarChar(128) NOT NULL,
         description Text NOT NULL,
-        pictures Jsonb NOT NULL,
+        picture_set Jsonb NOT NULL,
         deadline Timestamp NOT NULL,
         goal Jsonb NOT NULL,
 	bank_info Jsonb NOT NULL,

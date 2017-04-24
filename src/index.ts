@@ -3,7 +3,7 @@ import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
-import { ArrayOf, MarshalFrom, MarshalWith, SlugMarshaller } from 'raynor'
+import { MarshalFrom, SlugMarshaller } from 'raynor'
 
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { ActionsOverviewResponse,
@@ -14,7 +14,8 @@ import { ActionsOverviewResponse,
 	 CreateShareRequest,
 	 CurrencyAmount,
 	 DonationForUser,
-         Picture,
+         PictureSet,
+         PictureSetMarshaller,
 	 PublicCause,
 	 PublicCausesResponse,
 	 PublicCauseResponse,
@@ -29,12 +30,6 @@ import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-
 import { slugify } from '@neoncity/common-js/slugify'
 
 import * as config from './config'
-
-
-class StoragePictures {
-    @MarshalWith(ArrayOf(MarshalFrom(Picture)))
-    pictures: Picture[];
-}
 
 
 async function main() {
@@ -57,7 +52,7 @@ async function main() {
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
     const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
-    const picturesMarshaller = new (MarshalFrom(StoragePictures))();
+    const pictureSetMarshaller = new PictureSetMarshaller();
     const currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
     const bankInfoMarshaller = new (MarshalFrom(BankInfo))();
     const slugMarshaller = new SlugMarshaller();
@@ -76,7 +71,7 @@ async function main() {
 	'core.cause.slugs as cause_slugs',
 	'core.cause.title as cause_title',
 	'core.cause.description as cause_description',
-	'core.cause.pictures as cause_pictures',
+	'core.cause.picture_set as cause_picture_set',
 	'core.cause.deadline as cause_deadline',
 	'core.cause.goal as cause_goal'
     ];
@@ -124,7 +119,7 @@ async function main() {
 	    cause.slug = _latestSlug(dbC['cause_slugs'].slugs);
 	    cause.title = dbC['cause_title'];
 	    cause.description = dbC['cause_description'];
-	    cause.pictures = picturesMarshaller.extract(dbC['cause_pictures']).pictures;
+	    cause.pictureSet = pictureSetMarshaller.extract(dbC['cause_picture_set']);
 	    cause.deadline = dbC['cause_deadline'];
 	    cause.goal = currencyAmountMarshaller.extract(dbC['cause_goal']);
 
@@ -180,7 +175,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
+	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
@@ -291,7 +286,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
+	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
@@ -407,7 +402,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
+	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 
@@ -483,9 +478,6 @@ async function main() {
 	// Create cause
 	let dbId: number|null = null;
 	try {
-            const storagePictures = new StoragePictures();
-            storagePictures.pictures = createCauseRequest.pictures;
-            
 	    const dbIds = await conn('core.cause')
 		.returning('id')
 		.insert({
@@ -497,7 +489,7 @@ async function main() {
 		    'slugs': slugs,
 		    'title': createCauseRequest.title,
 		    'description': createCauseRequest.description,
-		    'pictures': picturesMarshaller.pack(storagePictures),
+		    'picture_set': pictureSetMarshaller.pack(createCauseRequest.pictureSet),
 		    'deadline': createCauseRequest.deadline,
 		    'goal': currencyAmountMarshaller.pack(createCauseRequest.goal),
 		    'bank_info': bankInfoMarshaller.pack(createCauseRequest.bankInfo)
@@ -530,7 +522,7 @@ async function main() {
 	cause.slug = slug;
 	cause.title = createCauseRequest.title;
 	cause.description = createCauseRequest.description;
-	cause.pictures = createCauseRequest.pictures;
+	cause.pictureSet = createCauseRequest.pictureSet;
 	cause.deadline = createCauseRequest.deadline;
 	cause.goal = createCauseRequest.goal;
 	cause.bankInfo = createCauseRequest.bankInfo;
@@ -599,7 +591,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
+	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 	cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
@@ -664,10 +656,8 @@ async function main() {
             updateDict['description'] = updateCauseRequest.description;
         }
 
-        if (updateCauseRequest.hasOwnProperty('pictures')) {
-            const storagePictures = new StoragePictures();
-            storagePictures.pictures = (updateCauseRequest.pictures) as Picture[];
-            updateDict['pictures'] = picturesMarshaller.pack(storagePictures);
+        if (updateCauseRequest.hasOwnProperty('pictureSet')) {
+            updateDict['picture_set'] = pictureSetMarshaller.pack(updateCauseRequest.pictureSet as PictureSet);
         }
 
         if (updateCauseRequest.hasOwnProperty('deadline')) {
@@ -714,7 +704,7 @@ async function main() {
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
-	cause.pictures = picturesMarshaller.extract(dbCause['cause_pictures']).pictures;
+	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
 	cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
@@ -837,7 +827,7 @@ async function main() {
 	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
 	    cause.title = dbD['cause_title'];
 	    cause.description = dbD['cause_description'];
-	    cause.pictures = picturesMarshaller.extract(dbD['cause_pictures']).pictures;
+	    cause.pictureSet = pictureSetMarshaller.extract(dbD['cause_picture_set']);
 	    cause.deadline = dbD['cause_deadline'];
 	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
 
@@ -859,7 +849,7 @@ async function main() {
 	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
 	    cause.title = dbD['cause_title'];
 	    cause.description = dbD['cause_description'];
-	    cause.pictures = picturesMarshaller.extract(dbD['cause_pictures']).pictures;
+	    cause.pictureSet = pictureSetMarshaller.extract(dbD['cause_picture_set']);
 	    cause.deadline = dbD['cause_deadline'];
 	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
 
