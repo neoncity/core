@@ -8,6 +8,7 @@ import { MarshalFrom, SlugMarshaller } from 'raynor'
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { ActionsOverviewResponse,
          BankInfo,
+         BankInfoMarshaller,
 	 CauseState,
 	 CreateCauseRequest,
 	 CreateDonationRequest,
@@ -54,7 +55,7 @@ async function main() {
     const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
     const pictureSetMarshaller = new PictureSetMarshaller();
     const currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
-    const bankInfoMarshaller = new (MarshalFrom(BankInfo))();
+    const bankInfoMarshaller = new BankInfoMarshaller();
     const slugMarshaller = new SlugMarshaller();
 
     app.use(newRequestTimeMiddleware());
