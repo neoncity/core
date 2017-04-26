@@ -4,6 +4,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         time_created Timestamp NOT NULL,
         cause_id Int NOT NULL REFERENCES core.cause(id),
         user_id Int NOT NULL,
+        facebook_post_id VarChar(128) NOT NULL,
 	PRIMARY KEY (id)
     );
 

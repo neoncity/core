@@ -92,7 +92,8 @@ async function main() {
 	'core.share.id as share_id',
 	'core.share.time_created as share_time_created',
 	'core.share.cause_id as share_cause_id',
-	'core.share.user_id as share_user_id'
+	'core.share.user_id as share_user_id',
+        'core.share.facebook_post_id as facebook_post_id'
     ];
 
     const publicCausesRouter = express.Router();
@@ -373,7 +374,8 @@ async function main() {
 		      .insert({
 			  'time_created': req.requestTime,
 			  'cause_id': causeId,
-			  'user_id': (user as User).id
+			  'user_id': (user as User).id,
+                          'facebook_post_id': (createShareRequest as CreateShareRequest).facebookPostId
 		      });
 
 		if (dbIds.length == 0) {
@@ -411,6 +413,7 @@ async function main() {
 	shareForUser.id = dbId as number;
 	shareForUser.timeCreated = req.requestTime;
 	shareForUser.forCause = cause;
+        shareForUser.facebookPostId = createShareRequest.facebookPostId;
 
 	const userShareResponse = new UserShareResponse();
 	userShareResponse.share = shareForUser;
@@ -858,6 +861,7 @@ async function main() {
 	    shareForUser.id = dbD['share_id'];
 	    shareForUser.timeCreated = dbD['share_time_created'];
 	    shareForUser.forCause = cause;
+            shareForUser.facebookPostId = dbD['share_facebook_post_id'];
 
 	    return shareForUser;
 	});	
