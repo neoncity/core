@@ -258,7 +258,7 @@ async function main() {
 			  'time_created': req.requestTime,
 			  'cause_id': causeId,
 			  'user_id': (user as User).id,
-			  'amount': (createDonationRequest as CreateDonationRequest).amount
+			  'amount': currencyAmountMarshaller.pack((createDonationRequest as CreateDonationRequest).amount)
 		      });
 
 		if (dbIds.length == 0) {
@@ -839,7 +839,7 @@ async function main() {
 	    donationForUser.id = dbD['donation_id'];
 	    donationForUser.timeCreated = dbD['donation_time_created'];
 	    donationForUser.forCause = cause;
-	    donationForUser.amount = dbD['donation_amount'];
+	    donationForUser.amount = currencyAmountMarshaller.extract(dbD['donation_amount']);
 
 	    return donationForUser;
 	});
