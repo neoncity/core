@@ -115,7 +115,7 @@ async function main() {
 	const causes = dbCauses.map((dbC: any) => {
 	    const cause = new PublicCause();
 	    cause.id = dbC['cause_id'];
-	    cause.state = _dbCauseStateToCauseState(dbC['cause_state']);
+	    cause.state = dbC['cause_state'];
 	    cause.timeCreated = new Date(dbC['cause_time_created']);
 	    cause.timeLastUpdated = new Date(dbC['cause_time_last_updated']);
 	    cause.slug = _latestSlug(dbC['cause_slugs'].slugs);
@@ -151,7 +151,7 @@ async function main() {
 	try {
 	    const dbCauses = await conn('core.cause')
 		  .select(causePrivateFields)
-		  .where({id: causeId, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .where({id: causeId, state: CauseState.Active})
 		  .limit(1);
 
 	    if (dbCauses.length == 0) {
@@ -171,7 +171,7 @@ async function main() {
 
 	const cause = new PublicCause();
 	cause.id = dbCause['cause_id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.state = dbCause['cause_state'];
 	cause.timeCreated = new Date(dbCause['cause_time_created']);
 	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
@@ -243,7 +243,7 @@ async function main() {
 		const dbCauses = await trx
 		      .from('core.cause')
 		      .select(causePublicFields)
-		      .where({id: causeId, state: _causeStateToDbCauseState(CauseState.Active)});
+		      .where({id: causeId, state: CauseState.Active});
 
 		if (dbCauses.length == 0) {
 		    throw new Error('Cause does not exist');
@@ -282,7 +282,7 @@ async function main() {
 
 	const cause = new PublicCause();
 	cause.id = dbCause['cause_id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.state = dbCause['cause_state'];
 	cause.timeCreated = new Date(dbCause['cause_time_created']);
 	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
@@ -360,7 +360,7 @@ async function main() {
 		const dbCauses = await trx
 		      .from('core.cause')
 		      .select(causePublicFields)
-		      .where({id: causeId, state: _causeStateToDbCauseState(CauseState.Active)});
+		      .where({id: causeId, state: CauseState.Active});
 
 		if (dbCauses.length == 0) {
 		    throw new Error('Cause does not exist');
@@ -399,7 +399,7 @@ async function main() {
 
 	const cause = new PublicCause();
 	cause.id = dbCause['cause_id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.state = dbCause['cause_state'];
 	cause.timeCreated = new Date(dbCause['cause_time_created']);
 	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
@@ -485,7 +485,7 @@ async function main() {
 	    const dbIds = await conn('core.cause')
 		.returning('id')
 		.insert({
-		    'state': _causeStateToDbCauseState(CauseState.Active),
+		    'state': CauseState.Active,
 		    'user_id': user.id,
 		    'time_created': req.requestTime,
 		    'time_last_updated': req.requestTime,
@@ -569,7 +569,7 @@ async function main() {
 	try {
 	    const dbCauses = await conn('core.cause')
 		  .select(causePrivateFields)
-		  .where({user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .where({user_id: user.id, state: CauseState.Active})
 		  .limit(1);
 
 	    if (dbCauses.length == 0) {
@@ -589,7 +589,7 @@ async function main() {
 
 	const cause = new PrivateCause();
 	cause.id = dbCause['cause_id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.state = dbCause['cause_state'];
 	cause.timeCreated = new Date(dbCause['cause_time_created']);
 	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
@@ -680,7 +680,7 @@ async function main() {
 	let dbCause: any|null = null;
 	try {
 	    const dbCauses = await conn('core.cause')
-		  .where({user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .where({user_id: user.id, state: CauseState.Active})
 		  .returning(causePrivateFields)
 		  .update(updateDict) as any[];
 
@@ -702,7 +702,7 @@ async function main() {
 	// Return value.
 	const cause = new PrivateCause();
 	cause.id = dbCause['cause_id'];
-	cause.state = _dbCauseStateToCauseState(dbCause['cause_state']);
+	cause.state = dbCause['cause_state'];
 	cause.timeCreated = new Date(dbCause['cause_time_created']);
 	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
@@ -750,9 +750,9 @@ async function main() {
 	// Mark the cause of this user as deleted.
 	try {
 	    const dbIds = await conn('core.cause')
-		  .where({user_id: user.id, state: _causeStateToDbCauseState(CauseState.Active)})
+		  .where({user_id: user.id, state: CauseState.Active})
 		  .update({
-		      'state': _causeStateToDbCauseState(CauseState.Removed),
+		      'state': CauseState.Removed,
 		      'time_removed': req.requestTime
 		  }, 'id') as number[];
 
@@ -825,7 +825,7 @@ async function main() {
 	const donations = dbDonations.map((dbD) => {
 	    const cause = new PublicCause();
 	    cause.id = dbD['cause_id'];
-	    cause.state = _dbCauseStateToCauseState(dbD['cause_state']);
+	    cause.state = dbD['cause_state'];
 	    cause.timeCreated = new Date(dbD['cause_time_created']);
 	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
 	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
@@ -847,7 +847,7 @@ async function main() {
 	const shares = dbShares.map((dbD) => {
 	    const cause = new PublicCause();
 	    cause.id = dbD['cause_id'];
-	    cause.state = _dbCauseStateToCauseState(dbD['cause_state']);
+	    cause.state = dbD['cause_state'];
 	    cause.timeCreated = new Date(dbD['cause_time_created']);
 	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
 	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
@@ -904,32 +904,6 @@ function _latestSlug(slugs: any[]): string {
     }
 
     return latestSlug;
-}
-
-
-function _causeStateToDbCauseState(causeState: CauseState): 'active'|'succeeded'|'removed' {
-    switch (causeState) {
-    case CauseState.Active:
-	return 'active';
-    case CauseState.Succeeded:
-	return 'succeeded';
-    case CauseState.Removed:
-	return 'removed';
-    default:
-	throw new Error('Invalid cause state');
-    }
-}
-
-
-function _dbCauseStateToCauseState(dbCauseState: 'active'|'succeeded'|'removed'): CauseState {
-    switch (dbCauseState) {
-    case 'active':
-	return CauseState.Active;
-    case 'succeeded':
-	return CauseState.Succeeded;
-    case 'removed':
-	return CauseState.Removed;
-    }
 }
 
 

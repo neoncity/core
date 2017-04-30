@@ -1,9 +1,7 @@
 exports.up = (knex, Promise) => knex.schema.raw(`
-    CREATE TYPE CauseState AS ENUM ('active', 'succeeded', 'removed');
-
     CREATE TABLE core.cause (
         id Serial,
-        state CauseState,
+        state SmallInt NOT NULL,
         user_id Int NOT NULL,
         time_created Timestamp NOT NULL,
         time_last_updated Timestamp NOT NULL,
@@ -24,5 +22,4 @@ exports.up = (knex, Promise) => knex.schema.raw(`
 exports.down = (knex, Promise) => knex.schema.raw(`
     DROP INDEX IF EXISTS core.cause_user_id;
     DROP TABLE IF EXISTS core.cause;
-    DROP TYPE CauseState
 `);
