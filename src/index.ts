@@ -58,11 +58,6 @@ async function main() {
     const bankInfoMarshaller = new BankInfoMarshaller();
     const slugMarshaller = new SlugMarshaller();
 
-    app.use(newRequestTimeMiddleware());
-    app.use(newCorsMiddleware(config.CLIENTS));
-    app.use(newAuthInfoMiddleware());
-    app.use(bodyParser.json());
-    
     const causePublicFields = [
 	'core.cause.id as cause_id',
 	'core.cause.state as cause_state',
@@ -96,6 +91,11 @@ async function main() {
         'core.share.facebook_post_id as facebook_post_id'
     ];
 
+    app.use(newRequestTimeMiddleware());
+    app.use(newCorsMiddleware(config.CLIENTS));
+    app.use(newAuthInfoMiddleware());
+    app.use(bodyParser.json());
+
     const publicCausesRouter = express.Router();
 
     publicCausesRouter.get('/', wrap(async (_: Request, res: express.Response) => {
@@ -103,7 +103,7 @@ async function main() {
 	try {
 	    dbCauses = await conn('core.cause')
 		.select(causePublicFields)
-		.where({state: 'active'})
+		.where({state: CauseState.Active})
 		.orderBy('time_created', 'desc') as any[];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
