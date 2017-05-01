@@ -1,11 +1,15 @@
 exports.up = (knex, Promise) => knex.schema.raw(`
     CREATE TABLE core.share (
+        -- Primary key
         id Serial,
+	PRIMARY KEY (id),
+        -- Core properties
         time_created Timestamp NOT NULL,
+        -- Foreign key
         cause_id Int NOT NULL REFERENCES core.cause(id),
+        -- Foreign key to external systems
         user_id Int NOT NULL,
-        facebook_post_id VarChar(128) NOT NULL,
-	PRIMARY KEY (id)
+        facebook_post_id VarChar(128) NOT NULL
     );
 
     CREATE INDEX share_cause_id ON core.share(cause_id);
