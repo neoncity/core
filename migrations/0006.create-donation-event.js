@@ -1,5 +1,5 @@
 exports.up = (knex, Promise) => knex.schema.raw(`
-    CREATE TABLE core.cause_event (
+    CREATE TABLE core.donation_event (
         -- Primary key
 	id Serial,
 	PRIMARY KEY (id),
@@ -8,14 +8,13 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         timestamp Timestamp NOT NULL,
         data Jsonb NOT NULL,
         -- Foreign key
-        cause_id Int NOT NULL REFERENCES core.cause(id)
+        donation_id Int NOT NULL REFERENCES core.donation(id)
     );
 
-    CREATE INDEX cause_event_cause_id ON core.cause_event(cause_id);
+    CREATE INDEX donation_event_donation_id ON core.donation_event(donation_id);
 `);
 
 exports.down = (knex, Promise) => knex.schema.raw(`
-    DROP INDEX IF EXISTS core.cause_event_cause_id;
-    DROP TABLE IF EXISTS core.cause_event;
+    DROP INDEX IF EXISTS core.donation_event_donation_id;
+    DROP TABLE IF EXISTS core.donation_event;
 `);
-
