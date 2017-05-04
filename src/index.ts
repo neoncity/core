@@ -5,10 +5,14 @@ import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
 import { MarshalFrom, SlugMarshaller } from 'raynor'
 
+import { isLocal } from '@neoncity/common-js/env'
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
 import { ActionsOverviewResponse,
          BankInfo,
          BankInfoMarshaller,
+	 CauseEvent,
+	 CauseEventsResponse,
+	 CauseEventType,
 	 CauseState,
 	 CreateCauseRequest,
 	 CreateDonationRequest,
@@ -54,6 +58,7 @@ async function main() {
     const privateCauseResponseMarshaller = new (MarshalFrom(PrivateCauseResponse))();
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
+    const causeEventsResponseMarshaller = new (MarshalFrom(CauseEventsResponse))();
     const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
     const pictureSetMarshaller = new PictureSetMarshaller();
     const currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
@@ -76,6 +81,13 @@ async function main() {
 
     const causePrivateFields = causePublicFields.slice();
     causePrivateFields.push('core.cause.bank_info as cause_bank_info');
+
+    const causeEventFields = [
+	'core.cause_event.id as cause_event_id',
+	'core.cause_event.type as cause_event_type',
+	'core.cause_event.timestamp as cause_event_timestamp',
+	'core.cause_event.data as cause_event_data'
+    ];
 
     const donationFields = [
 	'core.donation.id as donation_id',
@@ -109,6 +121,10 @@ async function main() {
 		.orderBy('time_created', 'desc') as any[];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
@@ -166,6 +182,10 @@ async function main() {
 	    dbCause = dbCauses[0];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
@@ -214,6 +234,10 @@ async function main() {
 	    createDonationRequest = createDonationRequestMarshaller.extract(req.body);
 	} catch (e) {
 	    console.log(`Invalid creation data - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
@@ -230,6 +254,10 @@ async function main() {
 		res.status(HttpStatus.UNAUTHORIZED);
 	    } else {
 		console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -289,6 +317,10 @@ async function main() {
 		res.status(HttpStatus.NOT_FOUND);
 	    } else {
 		console.log(`DB insertion error - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -345,6 +377,10 @@ async function main() {
 	    createShareRequest = createShareRequestMarshaller.extract(req.body);
 	} catch (e) {
 	    console.log(`Invalid creation data - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
@@ -361,6 +397,10 @@ async function main() {
 		res.status(HttpStatus.UNAUTHORIZED);
 	    } else {
 		console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -389,9 +429,9 @@ async function main() {
 		      .returning('id')
 		      .insert({
 			  'time_created': req.requestTime,
+                          'facebook_post_id': (createShareRequest as CreateShareRequest).facebookPostId,
 			  'cause_id': causeId,
-			  'user_id': (user as User).id,
-                          'facebook_post_id': (createShareRequest as CreateShareRequest).facebookPostId
+			  'user_id': (user as User).id
 		      });
 
 		if (dbIds.length == 0) {
@@ -420,6 +460,10 @@ async function main() {
 		res.status(HttpStatus.NOT_FOUND);
 	    } else {
 		console.log(`DB insertion error - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -469,6 +513,10 @@ async function main() {
 	    createCauseRequest = createCauseRequestMarshaller.extract(req.body) as CreateCauseRequest;
 	} catch (e) {
 	    console.log(`Invalid creation data - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
@@ -485,6 +533,10 @@ async function main() {
 		res.status(HttpStatus.UNAUTHORIZED);
 	    } else {
 		console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -502,6 +554,10 @@ async function main() {
 	    slugMarshaller.extract(slug);
 	} catch (e) {
 	    console.log('Title cannot be slugified');
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
@@ -510,36 +566,57 @@ async function main() {
 	const slugs = {slugs: [{slug: slug, timeCreated: req.requestTime.getTime()}]};
 
 	// Create cause
-	let dbId: number|null = null;
+	let dbId: number = -1;
 	try {
-	    const dbIds = await conn('core.cause')
-		.returning('id')
-		.insert({
-		    'state': CauseState.Active,
-		    'user_id': user.id,
-		    'time_created': req.requestTime,
-		    'time_last_updated': req.requestTime,
-		    'time_removed': null,
-		    'slugs': slugs,
-		    'title': createCauseRequest.title,
-		    'description': createCauseRequest.description,
-		    'picture_set': pictureSetMarshaller.pack(createCauseRequest.pictureSet),
-		    'deadline': createCauseRequest.deadline,
-		    'goal': currencyAmountMarshaller.pack(createCauseRequest.goal),
-		    'bank_info': bankInfoMarshaller.pack(createCauseRequest.bankInfo)
-		}) as number[];
+	    await conn.transaction(async (trx) => {
+		const dbIds = await trx
+		      .from('core.cause')
+		      .returning('id')
+		      .insert({
+			  'state': CauseState.Active,
+			  'slugs': slugs,
+			  'title': (createCauseRequest as CreateCauseRequest).title,
+			  'description': (createCauseRequest as CreateCauseRequest).description,
+			  'picture_set': pictureSetMarshaller.pack((createCauseRequest as CreateCauseRequest).pictureSet),
+			  'deadline': (createCauseRequest as CreateCauseRequest).deadline,
+			  'goal': currencyAmountMarshaller.pack((createCauseRequest as CreateCauseRequest).goal),
+			  'bank_info': bankInfoMarshaller.pack((createCauseRequest as CreateCauseRequest).bankInfo),
+			  'user_id': (user as User).id,
+			  'time_created': req.requestTime,
+			  'time_last_updated': req.requestTime,
+			  'time_removed': null
+		      }) as number[];
 
-	    if (dbIds.length == 0) {
-		throw new Error('Failed to insert cause');
-	    }
+		if (dbIds.length == 0) {
+		    throw new Error('Failed to insert cause');
+		}
 
-	    dbId = dbIds[0];
+		dbId = dbIds[0];
+
+		const dbCauseEventIds = await trx
+		      .from('core.cause_event')
+		      .returning('id')
+		      .insert({
+			  'type': CauseEventType.Created,
+			  'timestamp': req.requestTime,
+			  'data': createCauseRequestMarshaller.pack(createCauseRequest as CreateCauseRequest),
+			  'cause_id': dbId
+		      });
+
+		if (dbCauseEventIds.length == 0) {
+		    throw new Error('Failed to insert creation event');
+		}
+	    });
 	} catch (e) {
 	    if (e.detail == 'Key (user_id)=(1) already exists.') {
 		console.log('Cause already exists for user');
 		res.status(HttpStatus.CONFLICT);
 	    } else {
 		console.log(`DB insertion error - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -588,6 +665,10 @@ async function main() {
 	        res.status(HttpStatus.UNAUTHORIZED);
 	    } else {
 	        console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 	        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -612,6 +693,10 @@ async function main() {
 	    dbCause = dbCauses[0];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
@@ -638,6 +723,96 @@ async function main() {
         res.end();
     }));
 
+    privateCausesRouter.get('/events', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+	        console.log('User is unauthorized');
+	        res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+	        console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
+	        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	// Lookup id hash in database
+        let dbCauseEvents: any[]|null = null;
+	try {
+	    const dbCauses = await conn('core.cause')
+		  .select(['id'])
+		  .where({user_id: user.id, state: CauseState.Active})
+		  .limit(1);
+
+	    if (dbCauses.length == 0) {
+		console.log('Cause does not exist');
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+
+	    const dbCauseId = dbCauses[0]['id'];
+
+            dbCauseEvents = await conn('core.cause_event')
+                .select(causeEventFields)
+                .where({cause_id: dbCauseId})
+                .orderBy('timestamp', 'asc') as any[];
+
+            if (dbCauseEvents.length == 0) {
+		console.log('Cause does not have any events');
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+            }
+	} catch (e) {
+	    console.log(`DB read error - ${e.toString()}`);
+            if (isLocal(config.ENV)) {
+                console.log(e);
+            }
+            
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    res.end();
+	    return;
+	}
+
+	// Return joined value from auth0 and db
+
+        const causeEvents = dbCauseEvents.map(dbCE => {
+            const causeEvent = new CauseEvent();
+            causeEvent.id = dbCE['cause_event_id'];
+            causeEvent.type = dbCE['cause_event_type'];
+            causeEvent.timestamp = dbCE['cause_event_timestamp'];
+            causeEvent.data =
+		causeEvent.type == CauseEventType.Created ? createCauseRequestMarshaller.extract(dbCE['cause_event_data'])
+		: causeEvent.type == CauseEventType.Updated ? updateCauseRequestMarshaller.extract(dbCE['cause_event_data'])
+		: dbCE['cause_event_data'];
+            return causeEvent;
+        });
+
+        const causeEventsResponse = new CauseEventsResponse();
+        causeEventsResponse.events = causeEvents;
+	
+        res.write(JSON.stringify(causeEventsResponseMarshaller.pack(causeEventsResponse)));
+        res.end();
+    }));    
+
     privateCausesRouter.put('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
@@ -651,6 +826,10 @@ async function main() {
 	    updateCauseRequest = updateCauseRequestMarshaller.extract(req.body) as UpdateCauseRequest;
 	} catch (e) {
 	    console.log(`Invalid creation data - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.BAD_REQUEST);
 	    res.end();
 	    return;
@@ -667,6 +846,10 @@ async function main() {
 		res.status(HttpStatus.UNAUTHORIZED);
 	    } else {
 		console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -709,21 +892,42 @@ async function main() {
 	// Update the cause of this user.
 	let dbCause: any|null = null;
 	try {
-	    const dbCauses = await conn('core.cause')
-		  .where({user_id: user.id, state: CauseState.Active})
-		  .returning(causePrivateFields)
-		  .update(updateDict) as any[];
+	    await conn.transaction(async (trx) => {
+		const dbCauses = await trx
+		      .from('core.cause')
+		      .where({user_id: (user as User).id, state: CauseState.Active})
+		      .returning(causePrivateFields)
+		      .update(updateDict) as any[];
 
-	    if (dbCauses.length == 0) {
-		console.log('Cause does not exist');
-		res.status(HttpStatus.NOT_FOUND);
-		res.end();
-		return;
-	    }
+		if (dbCauses.length == 0) {
+		    console.log('Cause does not exist');
+		    res.status(HttpStatus.NOT_FOUND);
+		    res.end();
+		    return;
+		}
 
-	    dbCause = dbCauses[0];
+		dbCause = dbCauses[0];
+
+		const dbCauseEventIds = await trx
+		      .from('core.cause_event')
+		      .returning('id')
+		      .insert({
+			  'type': CauseEventType.Updated,
+			  'timestamp': req.requestTime,
+			  'data': updateCauseRequestMarshaller.pack(updateCauseRequest as UpdateCauseRequest),
+			  'cause_id': dbCause['cause_id']
+		      });
+
+		if (dbCauseEventIds.length == 0) {
+		    throw new Error('Failed to insert update event');
+		}
+	    });
 	} catch (e) {
 	    console.log(`DB update error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
@@ -770,6 +974,10 @@ async function main() {
 		res.status(HttpStatus.UNAUTHORIZED);
 	    } else {
 		console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -779,21 +987,44 @@ async function main() {
 
 	// Mark the cause of this user as deleted.
 	try {
-	    const dbIds = await conn('core.cause')
-		  .where({user_id: user.id, state: CauseState.Active})
-		  .update({
-		      'state': CauseState.Removed,
-		      'time_removed': req.requestTime
-		  }, 'id') as number[];
+	    await conn.transaction(async (trx) => {
+		const dbIds = await trx
+		      .from('core.cause')
+		      .where({user_id: (user as User).id, state: CauseState.Active})
+		      .update({
+			  'state': CauseState.Removed,
+			  'time_removed': req.requestTime
+		      }, 'id') as number[];
 
-	    if (dbIds.length == 0) {
-		console.log('Cause does not exist');
-		res.status(HttpStatus.NOT_FOUND);
-		res.end();
-		return;
-	    }
+		if (dbIds.length == 0) {
+		    console.log('Cause does not exist');
+		    res.status(HttpStatus.NOT_FOUND);
+		    res.end();
+		    return;
+		}
+
+		const dbId = dbIds[0];
+
+		const dbCauseEventIds = await trx
+		      .from('core.cause_event')
+		      .returning('id')
+		      .insert({
+			  'type': CauseEventType.Removed,
+			  'timestamp': req.requestTime,
+			  'data': null,
+			  'cause_id': dbId
+		      });
+
+		if (dbCauseEventIds.length == 0) {
+		    throw new Error('Failed to insert creation event');
+		}
+	    });
 	} catch (e) {
 	    console.log(`DB update error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
@@ -824,6 +1055,10 @@ async function main() {
 		res.status(HttpStatus.UNAUTHORIZED);
 	    } else {
 		console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
 		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    }
 	    
@@ -846,6 +1081,10 @@ async function main() {
 		.select(shareFields.concat(causePublicFields)) as any[];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
 	    return;
