@@ -14,6 +14,7 @@ import { ActionsOverviewResponse,
 	 CreateDonationRequest,
 	 CreateShareRequest,
 	 CurrencyAmount,
+	 DonationEventType,
 	 DonationForUser,
          PictureSet,
          PictureSetMarshaller,
@@ -256,9 +257,9 @@ async function main() {
 		      .returning('id')
 		      .insert({
 			  'time_created': req.requestTime,
+			  'amount': currencyAmountMarshaller.pack((createDonationRequest as CreateDonationRequest).amount),
 			  'cause_id': causeId,
-			  'user_id': (user as User).id,
-			  'amount': currencyAmountMarshaller.pack((createDonationRequest as CreateDonationRequest).amount)
+			  'user_id': (user as User).id
 		      });
 
 		if (dbIds.length == 0) {
@@ -266,6 +267,20 @@ async function main() {
 		}
 
 		dbId = dbIds[0];
+
+		const dbDonationEventIds = await trx
+		      .from('core.donation_event')
+		      .returning('id')
+		      .insert({
+			  'type': DonationEventType.Created,
+			  'timestamp': req.requestTime,
+			  'data': createDonationRequestMarshaller.pack(createDonationRequest as CreateDonationRequest),
+			  'donation_id': dbId
+		      });
+
+		if (dbDonationEventIds.length == 0) {
+		    throw new Error('Failed to insert creation event');
+		}
 	    });
 	} catch (e) {
 	    if (e.message == 'Cause does not exist') {
