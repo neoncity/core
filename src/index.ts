@@ -23,6 +23,7 @@ import { ActionsOverviewResponse,
 	 PublicCauseResponse,
 	 PrivateCause,
 	 PrivateCauseResponse,
+	 ShareEventType,
 	 ShareForUser,
 	 UpdateCauseRequest,
 	 UserActionsOverview,
@@ -398,6 +399,20 @@ async function main() {
 		}
 
 		dbId = dbIds[0];
+
+		const dbShareEventIds = await trx
+		      .from('core.share_event')
+		      .returning('id')
+		      .insert({
+			  'type': ShareEventType.Created,
+			  'timestamp': req.requestTime,
+			  'data': createShareRequestMarshaller.pack(createShareRequest as CreateShareRequest),
+			  'share_id': dbId
+		      });
+
+		if (dbShareEventIds.length == 0) {
+		    throw new Error('Failed to insert creation event');
+		}		
 	    });
 	} catch (e) {
 	    if (e.message == 'Cause does not exist') {
