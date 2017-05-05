@@ -10,6 +10,8 @@ import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Req
 import { ActionsOverviewResponse,
          BankInfo,
          BankInfoMarshaller,
+	 CauseAnalytics,
+	 CauseAnalyticsResponse,
 	 CauseEvent,
 	 CauseEventsResponse,
 	 CauseEventType,
@@ -59,6 +61,7 @@ async function main() {
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
     const causeEventsResponseMarshaller = new (MarshalFrom(CauseEventsResponse))();
+    const causeAnalyticsResponseMarshaller = new (MarshalFrom(CauseAnalyticsResponse))();
     const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
     const pictureSetMarshaller = new PictureSetMarshaller();
     const currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
@@ -723,7 +726,7 @@ async function main() {
         res.end();
     }));
 
-    privateCausesRouter.get('/events', wrap(async (req: Request, res: express.Response) => {
+    privateCausesRouter.get('/analytics', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
 	    console.log('No authInfo');
 	    res.status(HttpStatus.BAD_REQUEST);
@@ -753,11 +756,12 @@ async function main() {
 	    return;
 	}
 
-	// Lookup id hash in database
-        let dbCauseEvents: any[]|null = null;
+	let dbCause: any|null = null;
+	let dbDonationsAnalytics: any|null = null;
+	let dbSharesAnalytics: any|null = null;
 	try {
 	    const dbCauses = await conn('core.cause')
-		  .select(['id'])
+		  .select(['id', 'goal'])
 		  .where({user_id: user.id, state: CauseState.Active})
 		  .limit(1);
 
@@ -768,19 +772,47 @@ async function main() {
 		return;
 	    }
 
-	    const dbCauseId = dbCauses[0]['id'];
+	    dbCause = dbCauses[0];
 
-            dbCauseEvents = await conn('core.cause_event')
-                .select(causeEventFields)
-                .where({cause_id: dbCauseId})
-                .orderBy('timestamp', 'asc') as any[];
+	    // Yay, an analytics query.
+	    const rawDonationsAnalytics = await conn.raw(`
+                select
+                    count(distinct D.user_id) as donors_count,
+                    count(D.id) as donations_count,
+                    sum(json_extract_path_text(D.amount, 'amount')::numeric) as amount_donated
+                from core.cause as C
+                join core.donation as D
+                on C.id = D.cause_id
+                where C.id = ?
+            `, [dbCause['id']]);
 
-            if (dbCauseEvents.length == 0) {
-		console.log('Cause does not have any events');
-		res.status(HttpStatus.NOT_FOUND);
+	    if (rawDonationsAnalytics.rowCount == 0) {
+	        console.log('DB analytics retrieval error');
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 		res.end();
 		return;
             }
+
+	    dbDonationsAnalytics = rawDonationsAnalytics.rows[0];
+
+	    const rawSharesAnalytics = await conn.raw(`
+                select
+                    count(distinct S.user_id) as sharers_count,
+                    count(S.id) as shares_count
+                from core.cause as C
+                join core.share as S
+                on C.id = S.cause_id
+                where C.id = ?
+            `, [dbCause['id']]);
+
+	    if (rawSharesAnalytics.rowCount == 0) {
+	        console.log('DB analytics retrieval error');
+		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+		res.end();
+		return;
+            }
+
+	    dbSharesAnalytics = rawSharesAnalytics.rows[0];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
             if (isLocal(config.ENV)) {
@@ -792,26 +824,23 @@ async function main() {
 	    return;
 	}
 
-	// Return joined value from auth0 and db
+	const causeAnalytics = new CauseAnalytics();
+	causeAnalytics.daysLeft = 0;
+	causeAnalytics.donorsCount = parseInt(dbDonationsAnalytics['donors_count']);
+	causeAnalytics.donationsCount = parseInt(dbDonationsAnalytics['donations_count']);
+	causeAnalytics.amountDonated = new CurrencyAmount();
+	causeAnalytics.amountDonated.amount = parseInt(dbDonationsAnalytics['amount_donated']);
+	causeAnalytics.amountDonated.currency = currencyAmountMarshaller.extract(dbCause['goal']).currency;
+	causeAnalytics.sharersCount = parseInt(dbSharesAnalytics['sharers_count']);
+	causeAnalytics.sharesCount = parseInt(dbSharesAnalytics['shares_count']);
+	causeAnalytics.sharesReach = 0;
 
-        const causeEvents = dbCauseEvents.map(dbCE => {
-            const causeEvent = new CauseEvent();
-            causeEvent.id = dbCE['cause_event_id'];
-            causeEvent.type = dbCE['cause_event_type'];
-            causeEvent.timestamp = dbCE['cause_event_timestamp'];
-            causeEvent.data =
-		causeEvent.type == CauseEventType.Created ? createCauseRequestMarshaller.extract(dbCE['cause_event_data'])
-		: causeEvent.type == CauseEventType.Updated ? updateCauseRequestMarshaller.extract(dbCE['cause_event_data'])
-		: dbCE['cause_event_data'];
-            return causeEvent;
-        });
+	const causeAnalyticsResponse = new CauseAnalyticsResponse();
+	causeAnalyticsResponse.causeAnalytics = causeAnalytics;
 
-        const causeEventsResponse = new CauseEventsResponse();
-        causeEventsResponse.events = causeEvents;
-	
-        res.write(JSON.stringify(causeEventsResponseMarshaller.pack(causeEventsResponse)));
+	res.write(JSON.stringify(causeAnalyticsResponseMarshaller.pack(causeAnalyticsResponse)));
         res.end();
-    }));    
+    }));
 
     privateCausesRouter.put('/', wrap(async (req: Request, res: express.Response) => {
 	if (req.authInfo == null) {
@@ -1033,6 +1062,96 @@ async function main() {
 	res.status(HttpStatus.NO_CONTENT);
         res.end();
     }));
+
+    privateCausesRouter.get('/events', wrap(async (req: Request, res: express.Response) => {
+	if (req.authInfo == null) {
+	    console.log('No authInfo');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}
+
+	// Make a call to the identity service to retrieve the user.
+	let user: User|null = null;
+	try {
+	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	} catch (e) {
+	    // In lieu of instanceof working
+	    if (e.name == 'UnauthorizedIdentityError') {
+	        console.log('User is unauthorized');
+	        res.status(HttpStatus.UNAUTHORIZED);
+	    } else {
+	        console.log(`Call to identity service failed - ${e.toString()}`);
+		if (isLocal(config.ENV)) {
+                    console.log(e);
+		}
+		
+	        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    }
+	    
+	    res.end();
+	    return;
+	}
+
+	// Lookup id hash in database
+        let dbCauseEvents: any[]|null = null;
+	try {
+	    const dbCauses = await conn('core.cause')
+		  .select(['id'])
+		  .where({user_id: user.id, state: CauseState.Active})
+		  .limit(1);
+
+	    if (dbCauses.length == 0) {
+		console.log('Cause does not exist');
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+
+	    const dbCauseId = dbCauses[0]['id'];
+
+            dbCauseEvents = await conn('core.cause_event')
+                .select(causeEventFields)
+                .where({cause_id: dbCauseId})
+                .orderBy('timestamp', 'asc') as any[];
+
+            if (dbCauseEvents.length == 0) {
+		console.log('Cause does not have any events');
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+            }
+	} catch (e) {
+	    console.log(`DB read error - ${e.toString()}`);
+            if (isLocal(config.ENV)) {
+                console.log(e);
+            }
+            
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    res.end();
+	    return;
+	}
+
+	// Return joined value from auth0 and db
+
+        const causeEvents = dbCauseEvents.map(dbCE => {
+            const causeEvent = new CauseEvent();
+            causeEvent.id = dbCE['cause_event_id'];
+            causeEvent.type = dbCE['cause_event_type'];
+            causeEvent.timestamp = dbCE['cause_event_timestamp'];
+            causeEvent.data =
+		causeEvent.type == CauseEventType.Created ? createCauseRequestMarshaller.extract(dbCE['cause_event_data'])
+		: causeEvent.type == CauseEventType.Updated ? updateCauseRequestMarshaller.extract(dbCE['cause_event_data'])
+		: dbCE['cause_event_data'];
+            return causeEvent;
+        });
+
+        const causeEventsResponse = new CauseEventsResponse();
+        causeEventsResponse.events = causeEvents;
+	
+        res.write(JSON.stringify(causeEventsResponseMarshaller.pack(causeEventsResponse)));
+        res.end();
+    }));    
 
     const privateActionsOverviewRouter = express.Router();
 
