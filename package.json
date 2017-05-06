@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "3.5.1",
+  "version": "3.5.2",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {

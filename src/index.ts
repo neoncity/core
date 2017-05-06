@@ -829,7 +829,7 @@ async function main() {
 	causeAnalytics.donorsCount = parseInt(dbDonationsAnalytics['donors_count']);
 	causeAnalytics.donationsCount = parseInt(dbDonationsAnalytics['donations_count']);
 	causeAnalytics.amountDonated = new CurrencyAmount();
-	causeAnalytics.amountDonated.amount = parseInt(dbDonationsAnalytics['amount_donated']);
+	causeAnalytics.amountDonated.amount = dbDonationsAnalytics['amount_donated'] != null ? parseInt(dbDonationsAnalytics['amount_donated']) : 0;
 	causeAnalytics.amountDonated.currency = currencyAmountMarshaller.extract(dbCause['goal']).currency;
 	causeAnalytics.sharersCount = parseInt(dbSharesAnalytics['sharers_count']);
 	causeAnalytics.sharesCount = parseInt(dbSharesAnalytics['shares_count']);
