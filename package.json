@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -38,7 +38,7 @@
     "http-status-codes": "=1.1.6",
     "knex": "=0.12.6",
     "pg": "=6.1.2",
-    "raynor": "=0.7.0"
+    "raynor": "=0.7.1"
   },
   "devDependencies": {
     "@neoncity/togemfury": "~0",
