@@ -29,6 +29,7 @@ import { ActionsOverviewResponse,
 	 PublicCauseResponse,
 	 PrivateCause,
 	 PrivateCauseResponse,
+	 PrivateCauseResponseMarshaller,
 	 ShareEventType,
 	 ShareForUser,
 	 UpdateCauseRequest,
@@ -57,7 +58,7 @@ async function main() {
     const createShareRequestMarshaller = new (MarshalFrom(CreateShareRequest))();    
     const publicCausesResponseMarshaller = new (MarshalFrom(PublicCausesResponse))();
     const publicCauseResponseMarshaller = new (MarshalFrom(PublicCauseResponse))();
-    const privateCauseResponseMarshaller = new (MarshalFrom(PrivateCauseResponse))();
+    const privateCauseResponseMarshaller = new PrivateCauseResponseMarshaller();
     const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
     const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
     const causeEventsResponseMarshaller = new (MarshalFrom(CauseEventsResponse))();
@@ -171,7 +172,7 @@ async function main() {
 	let dbCause: any|null = null;
 	try {
 	    const dbCauses = await conn('core.cause')
-		  .select(causePrivateFields)
+		  .select(causePublicFields)
 		  .where({id: causeId, state: CauseState.Active})
 		  .limit(1);
 
