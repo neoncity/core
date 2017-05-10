@@ -612,7 +612,7 @@ async function main() {
 		}
 	    });
 	} catch (e) {
-	    if (e.detail == 'Key (user_id)=(1) already exists.') {
+	    if (e.detail.match(/^Key [(]user_id[)]=[(]\d+[)] already exists.$/) != null) {
 		console.log('Cause already exists for user');
 		res.status(HttpStatus.CONFLICT);
 	    } else {
@@ -643,6 +643,7 @@ async function main() {
 	cause.bankInfo = createCauseRequest.bankInfo;
 
 	const privateCauseResponse = new PrivateCauseResponse();
+	privateCauseResponse.causeIsRemoved = false;
 	privateCauseResponse.cause = cause;
 	
         res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));
@@ -684,7 +685,7 @@ async function main() {
 	try {
 	    const dbCauses = await conn('core.cause')
 		  .select(causePrivateFields)
-		  .where({user_id: user.id, state: CauseState.Active})
+		  .where({user_id: user.id})
 		  .limit(1);
 
 	    if (dbCauses.length == 0) {
@@ -706,20 +707,27 @@ async function main() {
 	    return;
 	}
 
-	const cause = new PrivateCause();
-	cause.id = dbCause['cause_id'];
-	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
-	cause.title = dbCause['cause_title'];
-	cause.description = dbCause['cause_description'];
-	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-	cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
+	let cause: PrivateCause|null;
+
+	if (dbCause['cause_state'] != CauseState.Removed) {
+	    cause = new PrivateCause();
+	    cause.id = dbCause['cause_id'];
+	    cause.state = dbCause['cause_state'];
+	    cause.timeCreated = new Date(dbCause['cause_time_created']);
+	    cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+	    cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
+	    cause.title = dbCause['cause_title'];
+	    cause.description = dbCause['cause_description'];
+	    cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
+	    cause.deadline = dbCause['cause_deadline'];
+	    cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
+	    cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
+	} else {
+	    cause = null;
+	}
 
 	const privateCauseResponse = new PrivateCauseResponse();
+	privateCauseResponse.causeIsRemoved = dbCause['cause_state'] == CauseState.Removed;
 	privateCauseResponse.cause = cause;
 
         res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)))
@@ -920,12 +928,13 @@ async function main() {
         }
 
 	// Update the cause of this user.
+	let causeIsRemoved = false;
 	let dbCause: any|null = null;
 	try {
 	    await conn.transaction(async (trx) => {
 		const dbCauses = await trx
 		      .from('core.cause')
-		      .where({user_id: (user as User).id, state: CauseState.Active})
+		      .where({user_id: (user as User).id})
 		      .returning(causePrivateFields)
 		      .update(updateDict) as any[];
 
@@ -937,6 +946,12 @@ async function main() {
 		}
 
 		dbCause = dbCauses[0];
+
+		if (dbCause['cause_state'] == CauseState.Removed) {
+		    causeIsRemoved = true;
+		    trx.rollback();
+		    return;
+		}
 
 		const dbCauseEventIds = await trx
 		      .from('core.cause_event')
@@ -963,21 +978,27 @@ async function main() {
 	    return;
 	}
 
-	// Return value.
-	const cause = new PrivateCause();
-	cause.id = dbCause['cause_id'];
-	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
-	cause.title = dbCause['cause_title'];
-	cause.description = dbCause['cause_description'];
-	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-	cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
+	let cause: PrivateCause|null;
+
+	if (!causeIsRemoved) {
+	    cause = new PrivateCause();
+	    cause.id = dbCause['cause_id'];
+	    cause.state = dbCause['cause_state'];
+	    cause.timeCreated = new Date(dbCause['cause_time_created']);
+	    cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+	    cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
+	    cause.title = dbCause['cause_title'];
+	    cause.description = dbCause['cause_description'];
+	    cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
+	    cause.deadline = dbCause['cause_deadline'];
+	    cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
+	    cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
+	} else {
+	    cause = null;
+	}
 
 	const privateCauseResponse = new PrivateCauseResponse();
+	privateCauseResponse.causeIsRemoved = causeIsRemoved;
 	privateCauseResponse.cause = cause;
 	
         res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));

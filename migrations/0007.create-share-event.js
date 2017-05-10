@@ -6,7 +6,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         -- Core properties
         type SmallInt NOT NULL,
         timestamp Timestamp NOT NULL,
-        data Jsonb NOT NULL,
+        data Jsonb NULL,
         -- Foreign key
         share_id Int NOT NULL REFERENCES core.share(id)
     );
