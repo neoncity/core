@@ -46,7 +46,7 @@ async function main() {
     startupMigration();
 
     const app = express();
-    const identityClient: IdentityClient = newIdentityClient(config.IDENTITY_SERVICE_HOST);
+    const identityClient: IdentityClient = newIdentityClient(config.ENV, config.IDENTITY_SERVICE_HOST);
     const conn = knex({
         client: 'pg',
     	connection: process.env.DATABASE_URL
