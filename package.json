@@ -38,7 +38,7 @@
     "http-status-codes": "=1.1.6",
     "knex": "=0.12.6",
     "pg": "=6.1.2",
-    "raynor": "=0.7.1"
+    "raynor": "=0.7.2"
   },
   "devDependencies": {
     "@neoncity/togemfury": "~0",
