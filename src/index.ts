@@ -6,7 +6,7 @@ import * as knex from 'knex'
 import { MarshalFrom, SlugMarshaller } from 'raynor'
 
 import { isLocal } from '@neoncity/common-js/env'
-import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, Request, startupMigration } from '@neoncity/common-server-js'
+import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, startupMigration } from '@neoncity/common-server-js'
 import { ActionsOverviewResponse,
          BankInfo,
          BankInfoMarshaller,
@@ -36,10 +36,12 @@ import { ActionsOverviewResponse,
 	 UserActionsOverview,
 	 UserDonationResponse,
 	 UserShareResponse} from '@neoncity/core-sdk-js'
-import { IdentityClient, newIdentityClient, User } from '@neoncity/identity-sdk-js'
+import { IdentityClient, newIdentityClient } from '@neoncity/identity-sdk-js'
 import { slugify } from '@neoncity/common-js/slugify'
 
 import * as config from './config'
+import { CoreRequest } from './core-request'
+import { newIdentityMiddleware } from './identity-middleware'
 
 
 async function main() {
@@ -49,7 +51,7 @@ async function main() {
     const identityClient: IdentityClient = newIdentityClient(config.ENV, config.IDENTITY_SERVICE_HOST);
     const conn = knex({
         client: 'pg',
-    	connection: process.env.DATABASE_URL
+    	connection: config.DATABASE_URL
     });
 
     const createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
@@ -116,7 +118,7 @@ async function main() {
 
     const publicCausesRouter = express.Router();
 
-    publicCausesRouter.get('/', wrap(async (_: Request, res: express.Response) => {
+    publicCausesRouter.get('/', wrap(async (_: CoreRequest, res: express.Response) => {
 	let dbCauses: any[]|null = null;
 	try {
 	    dbCauses = await conn('core.cause')
@@ -158,7 +160,7 @@ async function main() {
         res.end();
     }));
 
-    publicCausesRouter.get('/:causeId', wrap(async (req: Request, res: express.Response) => {
+    publicCausesRouter.get('/:causeId', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -215,14 +217,7 @@ async function main() {
         res.end();
     }));
 
-    publicCausesRouter.post('/:causeId/donations', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
+    publicCausesRouter.post('/:causeId/donations', newIdentityMiddleware(config.ENV, identityClient), wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -243,28 +238,6 @@ async function main() {
 	    }
 	    
 	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-		console.log('User is unauthorized');
-		res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-		console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
 	    res.end();
 	    return;
 	}
@@ -292,7 +265,7 @@ async function main() {
 			  'time_created': req.requestTime,
 			  'amount': currencyAmountMarshaller.pack((createDonationRequest as CreateDonationRequest).amount),
 			  'cause_id': causeId,
-			  'user_id': (user as User).id
+			  'user_id': req.user.id
 		      });
 
 		if (dbIds.length == 0) {
@@ -358,14 +331,7 @@ async function main() {
         res.end();
     }));
 
-    publicCausesRouter.post('/:causeId/shares', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
+    publicCausesRouter.post('/:causeId/shares', newIdentityMiddleware(config.ENV, identityClient), wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -386,28 +352,6 @@ async function main() {
 	    }
 	    
 	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-		console.log('User is unauthorized');
-		res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-		console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
 	    res.end();
 	    return;
 	}
@@ -435,7 +379,7 @@ async function main() {
 			  'time_created': req.requestTime,
                           'facebook_post_id': (createShareRequest as CreateShareRequest).facebookPostId,
 			  'cause_id': causeId,
-			  'user_id': (user as User).id
+			  'user_id': req.user.id
 		      });
 
 		if (dbIds.length == 0) {
@@ -503,14 +447,9 @@ async function main() {
 
     const privateCausesRouter = express.Router();
 
-    privateCausesRouter.post('/', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
+    privateCausesRouter.use(newIdentityMiddleware(config.ENV, identityClient));
 
+    privateCausesRouter.post('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse creation data.
 	let createCauseRequest: CreateCauseRequest|null = null;
 	try {
@@ -522,28 +461,6 @@ async function main() {
 	    }
 	    
 	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-		console.log('User is unauthorized try');
-		res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-		console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
 	    res.end();
 	    return;
 	}
@@ -585,7 +502,7 @@ async function main() {
 			  'deadline': (createCauseRequest as CreateCauseRequest).deadline,
 			  'goal': currencyAmountMarshaller.pack((createCauseRequest as CreateCauseRequest).goal),
 			  'bank_info': bankInfoMarshaller.pack((createCauseRequest as CreateCauseRequest).bankInfo),
-			  'user_id': (user as User).id,
+			  'user_id': req.user.id,
 			  'time_created': req.requestTime,
 			  'time_last_updated': req.requestTime,
 			  'time_removed': null
@@ -651,41 +568,12 @@ async function main() {
         res.end();
     }));
 
-    privateCausesRouter.get('/', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-        
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-	        console.log('User is unauthorized');
-	        res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-	        console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-	        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
-	    res.end();
-	    return;
-	}
-
+    privateCausesRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	let dbCause: any|null = null;
 	try {
 	    const dbCauses = await conn('core.cause')
 		  .select(causePrivateFields)
-		  .where({user_id: user.id})
+		  .where({user_id: req.user.id})
 		  .limit(1);
 
 	    if (dbCauses.length == 0) {
@@ -735,43 +623,14 @@ async function main() {
         res.end();
     }));
 
-    privateCausesRouter.get('/analytics', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-	        console.log('User is unauthorized');
-	        res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-	        console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-	        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
-	    res.end();
-	    return;
-	}
-
+    privateCausesRouter.get('/analytics', wrap(async (req: CoreRequest, res: express.Response) => {
 	let dbCause: any|null = null;
 	let dbDonationsAnalytics: any|null = null;
 	let dbSharesAnalytics: any|null = null;
 	try {
 	    const dbCauses = await conn('core.cause')
 		  .select(['id', 'goal'])
-		  .where({user_id: user.id, state: CauseState.Active})
+		  .where({user_id: req.user.id, state: CauseState.Active})
 		  .limit(1);
 
 	    if (dbCauses.length == 0) {
@@ -851,14 +710,7 @@ async function main() {
         res.end();
     }));
 
-    privateCausesRouter.put('/', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
+    privateCausesRouter.put('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	let updateCauseRequest: UpdateCauseRequest|null = null;
 	try {
 	    updateCauseRequest = updateCauseRequestMarshaller.extract(req.body) as UpdateCauseRequest;
@@ -869,28 +721,6 @@ async function main() {
 	    }
 	    
 	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-		console.log('User is unauthorized');
-		res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-		console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
 	    res.end();
 	    return;
 	}
@@ -934,7 +764,7 @@ async function main() {
 	    await conn.transaction(async (trx) => {
 		const dbCauses = await trx
 		      .from('core.cause')
-		      .where({user_id: (user as User).id})
+		      .where({user_id: req.user.id})
 		      .returning(causePrivateFields)
 		      .update(updateDict) as any[];
 
@@ -1006,42 +836,13 @@ async function main() {
         res.end();
     }));
 
-    privateCausesRouter.delete('/', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-		console.log('User is unauthorized');
-		res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-		console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
-	    res.end();
-	    return;
-	}
-
+    privateCausesRouter.delete('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Mark the cause of this user as deleted.
 	try {
 	    await conn.transaction(async (trx) => {
 		const dbIds = await trx
 		      .from('core.cause')
-		      .where({user_id: (user as User).id, state: CauseState.Active})
+		      .where({user_id: req.user.id, state: CauseState.Active})
 		      .update({
 			  'state': CauseState.Removed,
 			  'time_removed': req.requestTime
@@ -1085,42 +886,13 @@ async function main() {
         res.end();
     }));
 
-    privateCausesRouter.get('/events', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
-
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-	        console.log('User is unauthorized');
-	        res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-	        console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-	        res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
-	    res.end();
-	    return;
-	}
-
+    privateCausesRouter.get('/events', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Lookup id hash in database
         let dbCauseEvents: any[]|null = null;
 	try {
 	    const dbCauses = await conn('core.cause')
 		  .select(['id'])
-		  .where({user_id: user.id, state: CauseState.Active})
+		  .where({user_id: req.user.id, state: CauseState.Active})
 		  .limit(1);
 
 	    if (dbCauses.length == 0) {
@@ -1177,48 +949,21 @@ async function main() {
 
     const privateActionsOverviewRouter = express.Router();
 
-    privateActionsOverviewRouter.get('/', wrap(async (req: Request, res: express.Response) => {
-	if (req.authInfo == null) {
-	    console.log('No authInfo');
-	    res.status(HttpStatus.BAD_REQUEST);
-	    res.end();
-	    return;
-	}
+    privateActionsOverviewRouter.use(newIdentityMiddleware(config.ENV, identityClient));
 
-	// Make a call to the identity service to retrieve the user.
-	let user: User|null = null;
-	try {
-	    user = await identityClient.getUser(req.authInfo.auth0AccessToken);
-	} catch (e) {
-	    // In lieu of instanceof working
-	    if (e.name == 'UnauthorizedIdentityError') {
-		console.log('User is unauthorized');
-		res.status(HttpStatus.UNAUTHORIZED);
-	    } else {
-		console.log(`Call to identity service failed - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
-	    res.end();
-	    return;
-	}
-
+    privateActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Retrieve donations and shares.
 	let dbDonations: any[]|null = null;
 	let dbShares: any[]|null = null;
 	try {
 	    dbDonations = await conn('core.donation')
 		.join('core.cause', 'core.donation.cause_id', '=', 'core.cause.id')
-		.where({'core.donation.user_id': user.id})
+		.where({'core.donation.user_id': req.user.id})
 		.select(donationFields.concat(causePublicFields)) as any[];
 
 	    dbShares = await conn('core.share')
 		.join('core.cause', 'core.share.cause_id', '=', 'core.cause.id')
-		.where({'core.share.user_id': user.id})
+		.where({'core.share.user_id': req.user.id})
 		.select(shareFields.concat(causePublicFields)) as any[];
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
