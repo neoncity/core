@@ -3,45 +3,29 @@ import * as bodyParser from 'body-parser'
 import * as express from 'express'
 import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
-import { MarshalFrom, SlugMarshaller } from 'raynor'
+import { MarshalFrom } from 'raynor'
 
 import { isLocal } from '@neoncity/common-js/env'
 import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, startupMigration } from '@neoncity/common-server-js'
 import { ActionsOverviewResponse,
-         BankInfo,
-         BankInfoMarshaller,
-	 CauseAnalytics,
 	 CauseAnalyticsResponse,
-	 CauseEvent,
 	 CauseEventsResponse,
-	 CauseEventType,
-	 CauseState,
 	 CreateCauseRequest,
 	 CreateDonationRequest,
 	 CreateShareRequest,
-	 CurrencyAmount,
-	 DonationEventType,
-	 DonationForUser,
-         PictureSet,
-         PictureSetMarshaller,
-	 PublicCause,
 	 PublicCausesResponse,
 	 PublicCauseResponse,
-	 PrivateCause,
 	 PrivateCauseResponse,
 	 PrivateCauseResponseMarshaller,
-	 ShareEventType,
-	 ShareForUser,
 	 UpdateCauseRequest,
-	 UserActionsOverview,
 	 UserDonationResponse,
 	 UserShareResponse} from '@neoncity/core-sdk-js'
 import { IdentityClient, newIdentityClient } from '@neoncity/identity-sdk-js'
-import { slugify } from '@neoncity/common-js/slugify'
 
 import * as config from './config'
 import { CoreRequest } from './core-request'
 import { newIdentityMiddleware } from './identity-middleware'
+import { Repository } from './repository'
 
 
 async function main() {
@@ -66,50 +50,8 @@ async function main() {
     const causeEventsResponseMarshaller = new (MarshalFrom(CauseEventsResponse))();
     const causeAnalyticsResponseMarshaller = new (MarshalFrom(CauseAnalyticsResponse))();
     const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
-    const pictureSetMarshaller = new PictureSetMarshaller();
-    const currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
-    const bankInfoMarshaller = new BankInfoMarshaller();
-    const slugMarshaller = new SlugMarshaller();
 
-    const causePublicFields = [
-	'core.cause.id as cause_id',
-	'core.cause.state as cause_state',
-	'core.cause.user_id as cause_user_id',
-	'core.cause.time_created as cause_time_created',
-	'core.cause.time_last_updated as cause_time_last_updated',
-	'core.cause.slugs as cause_slugs',
-	'core.cause.title as cause_title',
-	'core.cause.description as cause_description',
-	'core.cause.picture_set as cause_picture_set',
-	'core.cause.deadline as cause_deadline',
-	'core.cause.goal as cause_goal'
-    ];
-
-    const causePrivateFields = causePublicFields.slice();
-    causePrivateFields.push('core.cause.bank_info as cause_bank_info');
-
-    const causeEventFields = [
-	'core.cause_event.id as cause_event_id',
-	'core.cause_event.type as cause_event_type',
-	'core.cause_event.timestamp as cause_event_timestamp',
-	'core.cause_event.data as cause_event_data'
-    ];
-
-    const donationFields = [
-	'core.donation.id as donation_id',
-	'core.donation.time_created as donation_time_created',
-	'core.donation.cause_id as donation_cause_id',
-	'core.donation.user_id as donation_user_id',
-	'core.donation.amount as donation_amount'
-    ];
-
-    const shareFields = [
-	'core.share.id as share_id',
-	'core.share.time_created as share_time_created',
-	'core.share.cause_id as share_cause_id',
-	'core.share.user_id as share_user_id',
-        'core.share.facebook_post_id as facebook_post_id'
-    ];
+    const repository = new Repository(conn);
 
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS));
@@ -119,12 +61,15 @@ async function main() {
     const publicCausesRouter = express.Router();
 
     publicCausesRouter.get('/', wrap(async (_: CoreRequest, res: express.Response) => {
-	let dbCauses: any[]|null = null;
 	try {
-	    dbCauses = await conn('core.cause')
-		.select(causePublicFields)
-		.where({state: CauseState.Active})
-		.orderBy('time_created', 'desc') as any[];
+	    const publicCauses = await repository.getPublicCauses();
+
+	    const publicCausesResponse = new PublicCausesResponse();
+	    publicCausesResponse.causes = publicCauses;
+	    
+            res.write(JSON.stringify(publicCausesResponseMarshaller.pack(publicCausesResponse)))
+	    res.status(HttpStatus.OK);
+            res.end();
 	} catch (e) {
 	    console.log(`DB read error - ${e.toString()}`);
 	    if (isLocal(config.ENV)) {
@@ -135,29 +80,6 @@ async function main() {
 	    res.end();
 	    return;
 	}
-
-	const causes = dbCauses.map((dbC: any) => {
-	    const cause = new PublicCause();
-	    cause.id = dbC['cause_id'];
-	    cause.state = dbC['cause_state'];
-	    cause.timeCreated = new Date(dbC['cause_time_created']);
-	    cause.timeLastUpdated = new Date(dbC['cause_time_last_updated']);
-	    cause.slug = _latestSlug(dbC['cause_slugs'].slugs);
-	    cause.title = dbC['cause_title'];
-	    cause.description = dbC['cause_description'];
-	    cause.pictureSet = pictureSetMarshaller.extract(dbC['cause_picture_set']);
-	    cause.deadline = dbC['cause_deadline'];
-	    cause.goal = currencyAmountMarshaller.extract(dbC['cause_goal']);
-
-	    return cause;
-	});
-
-	const publicCausesResponse = new PublicCausesResponse();
-	publicCausesResponse.causes = causes;
-	
-        res.write(JSON.stringify(publicCausesResponseMarshaller.pack(publicCausesResponse)))
-	res.status(HttpStatus.OK);
-        res.end();
     }));
 
     publicCausesRouter.get('/:causeId', wrap(async (req: CoreRequest, res: express.Response) => {
@@ -171,50 +93,31 @@ async function main() {
 	    return;
 	}
 
-	let dbCause: any|null = null;
 	try {
-	    const dbCauses = await conn('core.cause')
-		  .select(causePublicFields)
-		  .where({id: causeId, state: CauseState.Active})
-		  .limit(1);
+	    const publicCause = await repository.getPublicCause(causeId);
 
-	    if (dbCauses.length == 0) {
-		console.log('Cause does not exist');
+	    const publicCauseResponse = new PublicCauseResponse();
+	    publicCauseResponse.cause = publicCause;
+	    
+            res.write(JSON.stringify(publicCauseResponseMarshaller.pack(publicCauseResponse)))
+	    res.status(HttpStatus.OK);
+            res.end();
+	} catch (e) {
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
 		res.status(HttpStatus.NOT_FOUND);
 		res.end();
 		return;
 	    }
-
-	    dbCause = dbCauses[0];
-	} catch (e) {
-	    console.log(`DB read error - ${e.toString()}`);
+	    
+	    console.log(`DB retrieval error - ${e.toString()}`);
 	    if (isLocal(config.ENV)) {
                 console.log(e);
 	    }
 	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
-	    return;
 	}
-
-	const cause = new PublicCause();
-	cause.id = dbCause['cause_id'];
-	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
-	cause.title = dbCause['cause_title'];
-	cause.description = dbCause['cause_description'];
-	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-
-	const publicCauseResponse = new PublicCauseResponse();
-	publicCauseResponse.cause = cause;
-		
-        res.write(JSON.stringify(publicCauseResponseMarshaller.pack(publicCauseResponse)))
-	res.status(HttpStatus.OK);
-        res.end();
     }));
 
     publicCausesRouter.post('/:causeId/donations', newIdentityMiddleware(config.ENV, identityClient), wrap(async (req: CoreRequest, res: express.Response) => {
@@ -242,93 +145,31 @@ async function main() {
 	    return;
 	}
 
-	// Create donation
-	let dbCause: any|null = null;
-	let dbId: number = -1;
 	try {
-	    await conn.transaction(async (trx) => {
-		const dbCauses = await trx
-		      .from('core.cause')
-		      .select(causePublicFields)
-		      .where({id: causeId, state: CauseState.Active});
+	    const donationForUser = await repository.createDonation(req.user, causeId, createDonationRequest, req.requestTime);
 
-		if (dbCauses.length == 0) {
-		    throw new Error('Cause does not exist');
-		}
+	    const userDonationResponse = new UserDonationResponse();
+	    userDonationResponse.donation = donationForUser;
 
-		dbCause = dbCauses[0];
-
-		const dbIds = await trx
-		      .from('core.donation')
-		      .returning('id')
-		      .insert({
-			  'time_created': req.requestTime,
-			  'amount': currencyAmountMarshaller.pack((createDonationRequest as CreateDonationRequest).amount),
-			  'cause_id': causeId,
-			  'user_id': req.user.id
-		      });
-
-		if (dbIds.length == 0) {
-		    throw new Error('Failed to insert donation');
-		}
-
-		dbId = dbIds[0];
-
-		const dbDonationEventIds = await trx
-		      .from('core.donation_event')
-		      .returning('id')
-		      .insert({
-			  'type': DonationEventType.Created,
-			  'timestamp': req.requestTime,
-			  'data': createDonationRequestMarshaller.pack(createDonationRequest as CreateDonationRequest),
-			  'donation_id': dbId
-		      });
-
-		if (dbDonationEventIds.length == 0) {
-		    throw new Error('Failed to insert creation event');
-		}
-	    });
+	    res.write(JSON.stringify(userDonationResponseMarshaller.pack(userDonationResponse)));
+            res.status(HttpStatus.CREATED);
+            res.end();
 	} catch (e) {
-	    if (e.message == 'Cause does not exist') {
-		console.log('Cause does not exist');
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
 		res.status(HttpStatus.NOT_FOUND);
-	    } else {
-		console.log(`DB insertion error - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+		res.end();
+		return;
+	    }
+
+	    console.log(`DB insertion error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
 	    }
 	    
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
-	    return;
 	}
-
-	const cause = new PublicCause();
-	cause.id = dbCause['cause_id'];
-	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
-	cause.title = dbCause['cause_title'];
-	cause.description = dbCause['cause_description'];
-	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-
-	const donationForUser = new DonationForUser();
-	donationForUser.id = dbId as number;
-	donationForUser.timeCreated = req.requestTime;
-	donationForUser.forCause = cause;
-	donationForUser.amount = createDonationRequest.amount;
-
-	const userDonationResponse = new UserDonationResponse();
-	userDonationResponse.donation = donationForUser;
-
-	res.write(JSON.stringify(userDonationResponseMarshaller.pack(userDonationResponse)));
-        res.status(HttpStatus.CREATED);
-        res.end();
     }));
 
     publicCausesRouter.post('/:causeId/shares', newIdentityMiddleware(config.ENV, identityClient), wrap(async (req: CoreRequest, res: express.Response) => {
@@ -356,93 +197,31 @@ async function main() {
 	    return;
 	}
 
-	// Create share
-	let dbCause: any|null = null;
-	let dbId: number = -1;
 	try {
-	    await conn.transaction(async (trx) => {
-		const dbCauses = await trx
-		      .from('core.cause')
-		      .select(causePublicFields)
-		      .where({id: causeId, state: CauseState.Active});
+	    const shareForUser = await repository.createShare(req.user, causeId, createShareRequest, req.requestTime);
 
-		if (dbCauses.length == 0) {
-		    throw new Error('Cause does not exist');
-		}
+	    const userShareResponse = new UserShareResponse();
+	    userShareResponse.share = shareForUser;
 
-		dbCause = dbCauses[0];
-
-		const dbIds = await trx
-		      .from('core.share')
-		      .returning('id')
-		      .insert({
-			  'time_created': req.requestTime,
-                          'facebook_post_id': (createShareRequest as CreateShareRequest).facebookPostId,
-			  'cause_id': causeId,
-			  'user_id': req.user.id
-		      });
-
-		if (dbIds.length == 0) {
-		    throw new Error('Failed to insert share');
-		}
-
-		dbId = dbIds[0];
-
-		const dbShareEventIds = await trx
-		      .from('core.share_event')
-		      .returning('id')
-		      .insert({
-			  'type': ShareEventType.Created,
-			  'timestamp': req.requestTime,
-			  'data': createShareRequestMarshaller.pack(createShareRequest as CreateShareRequest),
-			  'share_id': dbId
-		      });
-
-		if (dbShareEventIds.length == 0) {
-		    throw new Error('Failed to insert creation event');
-		}		
-	    });
+	    res.write(JSON.stringify(userShareResponseMarshaller.pack(userShareResponse)));
+            res.status(HttpStatus.CREATED);
+            res.end();
 	} catch (e) {
-	    if (e.message == 'Cause does not exist') {
-		console.log('Cause does not exist');
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
 		res.status(HttpStatus.NOT_FOUND);
-	    } else {
-		console.log(`DB insertion error - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+		res.end();
+		return;
+	    }
+
+	    console.log(`DB insertion error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
 	    }
 	    
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
-	    return;
 	}
-
-	const cause = new PublicCause();
-	cause.id = dbCause['cause_id'];
-	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-	cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
-	cause.title = dbCause['cause_title'];
-	cause.description = dbCause['cause_description'];
-	cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-	cause.deadline = dbCause['cause_deadline'];
-	cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-
-	const shareForUser = new ShareForUser();
-	shareForUser.id = dbId as number;
-	shareForUser.timeCreated = req.requestTime;
-	shareForUser.forCause = cause;
-        shareForUser.facebookPostId = createShareRequest.facebookPostId;
-
-	const userShareResponse = new UserShareResponse();
-	userShareResponse.share = shareForUser;
-
-	res.write(JSON.stringify(userShareResponseMarshaller.pack(userShareResponse)));
-        res.status(HttpStatus.CREATED);
-        res.end();
     }));
 
     const privateCausesRouter = express.Router();
@@ -465,249 +244,107 @@ async function main() {
 	    return;
 	}
 
-	// Check deadline is appropriate.
-	// TODO: do it
-
-	// Create slug.
-	const slug = slugify(createCauseRequest.title);
-
 	try {
-	    slugMarshaller.extract(slug);
+	    const cause = await repository.createCause(req.user, createCauseRequest, req.requestTime);
+
+	    const privateCauseResponse = new PrivateCauseResponse();
+	    privateCauseResponse.causeIsRemoved = false;
+	    privateCauseResponse.cause = cause;
+	
+            res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));
+	    res.status(HttpStatus.CREATED);
+            res.end();
 	} catch (e) {
-	    console.log('Title cannot be slugified');
+	    if (e.name == 'InvalidCausePropertiesError') {
+		console.log(e.message);
+		res.status(HttpStatus.BAD_REQUEST);
+		res.end();
+		return;
+	    }
+	    
+	    if (e.name == 'CauseAlreadyExistsError') {
+		console.log(e.message);
+		res.status(HttpStatus.CONFLICT);
+		res.end();
+		return;
+	    }
+
+	    console.log(`DB insertion error - ${e.toString()}`);
 	    if (isLocal(config.ENV)) {
                 console.log(e);
 	    }
 	    
-	    res.status(HttpStatus.BAD_REQUEST);
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
-	    return;
 	}
-
-	const slugs = {slugs: [{slug: slug, timeCreated: req.requestTime.getTime()}]};
-
-	// Create cause
-	let dbId: number = -1;
-	try {
-	    await conn.transaction(async (trx) => {
-		const dbIds = await trx
-		      .from('core.cause')
-		      .returning('id')
-		      .insert({
-			  'state': CauseState.Active,
-			  'slugs': slugs,
-			  'title': (createCauseRequest as CreateCauseRequest).title,
-			  'description': (createCauseRequest as CreateCauseRequest).description,
-			  'picture_set': pictureSetMarshaller.pack((createCauseRequest as CreateCauseRequest).pictureSet),
-			  'deadline': (createCauseRequest as CreateCauseRequest).deadline,
-			  'goal': currencyAmountMarshaller.pack((createCauseRequest as CreateCauseRequest).goal),
-			  'bank_info': bankInfoMarshaller.pack((createCauseRequest as CreateCauseRequest).bankInfo),
-			  'user_id': req.user.id,
-			  'time_created': req.requestTime,
-			  'time_last_updated': req.requestTime,
-			  'time_removed': null
-		      }) as number[];
-
-		if (dbIds.length == 0) {
-		    throw new Error('Failed to insert cause');
-		}
-
-		dbId = dbIds[0];
-
-		const dbCauseEventIds = await trx
-		      .from('core.cause_event')
-		      .returning('id')
-		      .insert({
-			  'type': CauseEventType.Created,
-			  'timestamp': req.requestTime,
-			  'data': createCauseRequestMarshaller.pack(createCauseRequest as CreateCauseRequest),
-			  'cause_id': dbId
-		      });
-
-		if (dbCauseEventIds.length == 0) {
-		    throw new Error('Failed to insert creation event');
-		}
-	    });
-	} catch (e) {
-	    if (e.detail.match(/^Key [(]user_id[)]=[(]\d+[)] already exists.$/) != null) {
-		console.log('Cause already exists for user');
-		res.status(HttpStatus.CONFLICT);
-	    } else {
-		console.log(`DB insertion error - ${e.toString()}`);
-		if (isLocal(config.ENV)) {
-                    console.log(e);
-		}
-		
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    }
-	    
-	    res.end();
-	    return;
-	}
-
-	// Return value.
-	const cause = new PrivateCause();
-	cause.id = dbId;
-	cause.state = CauseState.Active;
-	cause.timeCreated = req.requestTime;
-	cause.timeLastUpdated = req.requestTime;
-	cause.slug = slug;
-	cause.title = createCauseRequest.title;
-	cause.description = createCauseRequest.description;
-	cause.pictureSet = createCauseRequest.pictureSet;
-	cause.deadline = createCauseRequest.deadline;
-	cause.goal = createCauseRequest.goal;
-	cause.bankInfo = createCauseRequest.bankInfo;
-
-	const privateCauseResponse = new PrivateCauseResponse();
-	privateCauseResponse.causeIsRemoved = false;
-	privateCauseResponse.cause = cause;
-	
-        res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));
-	res.status(HttpStatus.CREATED);
-        res.end();
     }));
 
     privateCausesRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
-	let dbCause: any|null = null;
 	try {
-	    const dbCauses = await conn('core.cause')
-		  .select(causePrivateFields)
-		  .where({user_id: req.user.id})
-		  .limit(1);
+	    const cause = await repository.getCause(req.user);
+	    
+	    const privateCauseResponse = new PrivateCauseResponse();
+	    privateCauseResponse.causeIsRemoved = false;
+	    privateCauseResponse.cause = cause;
 
-	    if (dbCauses.length == 0) {
-		console.log('Cause does not exist');
+            res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)))
+	    res.status(HttpStatus.OK);
+            res.end();
+	} catch (e) {
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
 		res.status(HttpStatus.NOT_FOUND);
 		res.end();
 		return;
 	    }
 
-	    dbCause = dbCauses[0];
+	    if (e.name == 'CauseRemovedError') {
+		const privateCauseResponse = new PrivateCauseResponse();
+		privateCauseResponse.causeIsRemoved = true;
+		privateCauseResponse.cause = null;
+
+		res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)))
+		res.status(HttpStatus.OK);
+		res.end();
+		return;
+	    }
+
+	    console.log(`DB retrieval error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    res.end();	    
+	}
+    }));
+
+    privateCausesRouter.get('/analytics', wrap(async (req: CoreRequest, res: express.Response) => {
+	try {
+	    const causeAnalytics = await repository.getCauseAnalytics(req.user);
+	    
+	    const causeAnalyticsResponse = new CauseAnalyticsResponse();
+	    causeAnalyticsResponse.causeAnalytics = causeAnalytics;
+
+	    res.write(JSON.stringify(causeAnalyticsResponseMarshaller.pack(causeAnalyticsResponse)));
+	    res.status(HttpStatus.OK);
+            res.end();	    
 	} catch (e) {
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+	    
 	    console.log(`DB read error - ${e.toString()}`);
 	    if (isLocal(config.ENV)) {
                 console.log(e);
 	    }
 	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    res.end();
-	    return;
+	    res.end();	    
 	}
-
-	let cause: PrivateCause|null;
-
-	if (dbCause['cause_state'] != CauseState.Removed) {
-	    cause = new PrivateCause();
-	    cause.id = dbCause['cause_id'];
-	    cause.state = dbCause['cause_state'];
-	    cause.timeCreated = new Date(dbCause['cause_time_created']);
-	    cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-	    cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
-	    cause.title = dbCause['cause_title'];
-	    cause.description = dbCause['cause_description'];
-	    cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-	    cause.deadline = dbCause['cause_deadline'];
-	    cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-	    cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
-	} else {
-	    cause = null;
-	}
-
-	const privateCauseResponse = new PrivateCauseResponse();
-	privateCauseResponse.causeIsRemoved = dbCause['cause_state'] == CauseState.Removed;
-	privateCauseResponse.cause = cause;
-
-        res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)))
-	res.status(HttpStatus.OK);
-        res.end();
-    }));
-
-    privateCausesRouter.get('/analytics', wrap(async (req: CoreRequest, res: express.Response) => {
-	let dbCause: any|null = null;
-	let dbDonationsAnalytics: any|null = null;
-	let dbSharesAnalytics: any|null = null;
-	try {
-	    const dbCauses = await conn('core.cause')
-		  .select(['id', 'goal'])
-		  .where({user_id: req.user.id, state: CauseState.Active})
-		  .limit(1);
-
-	    if (dbCauses.length == 0) {
-		console.log('Cause does not exist');
-		res.status(HttpStatus.NOT_FOUND);
-		res.end();
-		return;
-	    }
-
-	    dbCause = dbCauses[0];
-
-	    // Yay, an analytics query.
-	    const rawDonationsAnalytics = await conn.raw(`
-                select
-                    count(distinct D.user_id) as donors_count,
-                    count(D.id) as donations_count,
-                    sum(json_extract_path_text(D.amount, 'amount')::numeric) as amount_donated
-                from core.cause as C
-                join core.donation as D
-                on C.id = D.cause_id
-                where C.id = ?
-            `, [dbCause['id']]);
-
-	    if (rawDonationsAnalytics.rowCount == 0) {
-	        console.log('DB analytics retrieval error');
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-		res.end();
-		return;
-            }
-
-	    dbDonationsAnalytics = rawDonationsAnalytics.rows[0];
-
-	    const rawSharesAnalytics = await conn.raw(`
-                select
-                    count(distinct S.user_id) as sharers_count,
-                    count(S.id) as shares_count
-                from core.cause as C
-                join core.share as S
-                on C.id = S.cause_id
-                where C.id = ?
-            `, [dbCause['id']]);
-
-	    if (rawSharesAnalytics.rowCount == 0) {
-	        console.log('DB analytics retrieval error');
-		res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-		res.end();
-		return;
-            }
-
-	    dbSharesAnalytics = rawSharesAnalytics.rows[0];
-	} catch (e) {
-	    console.log(`DB read error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
-            
-	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    res.end();
-	    return;
-	}
-
-	const causeAnalytics = new CauseAnalytics();
-	causeAnalytics.daysLeft = 0;
-	causeAnalytics.donorsCount = parseInt(dbDonationsAnalytics['donors_count']);
-	causeAnalytics.donationsCount = parseInt(dbDonationsAnalytics['donations_count']);
-	causeAnalytics.amountDonated = new CurrencyAmount();
-	causeAnalytics.amountDonated.amount = dbDonationsAnalytics['amount_donated'] != null ? parseInt(dbDonationsAnalytics['amount_donated']) : 0;
-	causeAnalytics.amountDonated.currency = currencyAmountMarshaller.extract(dbCause['goal']).currency;
-	causeAnalytics.sharersCount = parseInt(dbSharesAnalytics['sharers_count']);
-	causeAnalytics.sharesCount = parseInt(dbSharesAnalytics['shares_count']);
-	causeAnalytics.sharesReach = 0;
-
-	const causeAnalyticsResponse = new CauseAnalyticsResponse();
-	causeAnalyticsResponse.causeAnalytics = causeAnalytics;
-
-	res.write(JSON.stringify(causeAnalyticsResponseMarshaller.pack(causeAnalyticsResponse)));
-        res.end();
     }));
 
     privateCausesRouter.put('/', wrap(async (req: CoreRequest, res: express.Response) => {
@@ -725,153 +362,60 @@ async function main() {
 	    return;
 	}
 
-	// TODO: verify deadlline is OK.
-
-	// TODO: improve typing here.
-
-	const updateDict: any = {
-            'time_last_updated': req.requestTime
-        };
-
-        if (updateCauseRequest.hasOwnProperty('title')) {
-            updateDict['title'] = updateCauseRequest.title;
-        }
-
-        if (updateCauseRequest.hasOwnProperty('description')) {
-            updateDict['description'] = updateCauseRequest.description;
-        }
-
-        if (updateCauseRequest.hasOwnProperty('pictureSet')) {
-            updateDict['picture_set'] = pictureSetMarshaller.pack(updateCauseRequest.pictureSet as PictureSet);
-        }
-
-        if (updateCauseRequest.hasOwnProperty('deadline')) {
-            updateDict['deadline'] = updateCauseRequest.deadline;
-        }
-
-        if (updateCauseRequest.hasOwnProperty('goal')) {
-            updateDict['goal'] = currencyAmountMarshaller.pack(updateCauseRequest.goal as CurrencyAmount);
-        }
-
-        if (updateCauseRequest.hasOwnProperty('bankInfo')) {
-            updateDict['bank_info'] = bankInfoMarshaller.pack(updateCauseRequest.bankInfo as BankInfo);
-        }
-
-	// Update the cause of this user.
-	let causeIsRemoved = false;
-	let dbCause: any|null = null;
 	try {
-	    await conn.transaction(async (trx) => {
-		const dbCauses = await trx
-		      .from('core.cause')
-		      .where({user_id: req.user.id})
-		      .returning(causePrivateFields)
-		      .update(updateDict) as any[];
+	    const cause = await repository.updateCause(req.user, updateCauseRequest, req.requestTime);
 
-		if (dbCauses.length == 0) {
-		    console.log('Cause does not exist');
-		    res.status(HttpStatus.NOT_FOUND);
-		    res.end();
-		    return;
-		}
-
-		dbCause = dbCauses[0];
-
-		if (dbCause['cause_state'] == CauseState.Removed) {
-		    causeIsRemoved = true;
-		    trx.rollback();
-		    return;
-		}
-
-		const dbCauseEventIds = await trx
-		      .from('core.cause_event')
-		      .returning('id')
-		      .insert({
-			  'type': CauseEventType.Updated,
-			  'timestamp': req.requestTime,
-			  'data': updateCauseRequestMarshaller.pack(updateCauseRequest as UpdateCauseRequest),
-			  'cause_id': dbCause['cause_id']
-		      });
-
-		if (dbCauseEventIds.length == 0) {
-		    throw new Error('Failed to insert update event');
-		}
-	    });
+	    const privateCauseResponse = new PrivateCauseResponse();
+	    privateCauseResponse.causeIsRemoved = false;
+	    privateCauseResponse.cause = cause;
+	    
+            res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));
+	    res.status(HttpStatus.OK);
+            res.end();
 	} catch (e) {
-	    console.log(`DB update error - ${e.toString()}`);
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+
+	    if (e.name == 'CauseRemovedError') {
+		const privateCauseResponse = new PrivateCauseResponse();
+		privateCauseResponse.causeIsRemoved = true;
+		privateCauseResponse.cause = null;
+
+		res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)))
+		res.status(HttpStatus.OK);
+		res.end();
+		return;
+	    }
+
+	    console.log(`DB retrieval error - ${e.toString()}`);
 	    if (isLocal(config.ENV)) {
                 console.log(e);
 	    }
 	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    res.end();
-	    return;
+	    res.end();	    
 	}
-
-	let cause: PrivateCause|null;
-
-	if (!causeIsRemoved) {
-	    cause = new PrivateCause();
-	    cause.id = dbCause['cause_id'];
-	    cause.state = dbCause['cause_state'];
-	    cause.timeCreated = new Date(dbCause['cause_time_created']);
-	    cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-	    cause.slug = _latestSlug(dbCause['cause_slugs'].slugs);
-	    cause.title = dbCause['cause_title'];
-	    cause.description = dbCause['cause_description'];
-	    cause.pictureSet = pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-	    cause.deadline = dbCause['cause_deadline'];
-	    cause.goal = currencyAmountMarshaller.extract(dbCause['cause_goal']);
-	    cause.bankInfo = bankInfoMarshaller.extract(dbCause['cause_bank_info']);
-	} else {
-	    cause = null;
-	}
-
-	const privateCauseResponse = new PrivateCauseResponse();
-	privateCauseResponse.causeIsRemoved = causeIsRemoved;
-	privateCauseResponse.cause = cause;
-	
-        res.write(JSON.stringify(privateCauseResponseMarshaller.pack(privateCauseResponse)));
-	res.status(HttpStatus.OK);
-        res.end();
     }));
 
     privateCausesRouter.delete('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Mark the cause of this user as deleted.
 	try {
-	    await conn.transaction(async (trx) => {
-		const dbIds = await trx
-		      .from('core.cause')
-		      .where({user_id: req.user.id, state: CauseState.Active})
-		      .update({
-			  'state': CauseState.Removed,
-			  'time_removed': req.requestTime
-		      }, 'id') as number[];
+	    await repository.deleteCause(req.user, req.requestTime);
 
-		if (dbIds.length == 0) {
-		    console.log('Cause does not exist');
-		    res.status(HttpStatus.NOT_FOUND);
-		    res.end();
-		    return;
-		}
-
-		const dbId = dbIds[0];
-
-		const dbCauseEventIds = await trx
-		      .from('core.cause_event')
-		      .returning('id')
-		      .insert({
-			  'type': CauseEventType.Removed,
-			  'timestamp': req.requestTime,
-			  'data': null,
-			  'cause_id': dbId
-		      });
-
-		if (dbCauseEventIds.length == 0) {
-		    throw new Error('Failed to insert creation event');
-		}
-	    });
+	    res.status(HttpStatus.NO_CONTENT);
+            res.end();
 	} catch (e) {
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+	    
 	    console.log(`DB update error - ${e.toString()}`);
 	    if (isLocal(config.ENV)) {
                 console.log(e);
@@ -879,72 +423,34 @@ async function main() {
 	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
-	    return;
 	}
-
-	res.status(HttpStatus.NO_CONTENT);
-        res.end();
     }));
 
     privateCausesRouter.get('/events', wrap(async (req: CoreRequest, res: express.Response) => {
-	// Lookup id hash in database
-        let dbCauseEvents: any[]|null = null;
 	try {
-	    const dbCauses = await conn('core.cause')
-		  .select(['id'])
-		  .where({user_id: req.user.id, state: CauseState.Active})
-		  .limit(1);
+	    const causeEvents = await repository.getCauseEvents(req.user);
 
-	    if (dbCauses.length == 0) {
-		console.log('Cause does not exist');
+            const causeEventsResponse = new CauseEventsResponse();
+            causeEventsResponse.events = causeEvents;
+	    
+            res.write(JSON.stringify(causeEventsResponseMarshaller.pack(causeEventsResponse)));
+            res.end();
+	} catch (e) {
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
 		res.status(HttpStatus.NOT_FOUND);
 		res.end();
 		return;
 	    }
-
-	    const dbCauseId = dbCauses[0]['id'];
-
-            dbCauseEvents = await conn('core.cause_event')
-                .select(causeEventFields)
-                .where({cause_id: dbCauseId})
-                .orderBy('timestamp', 'asc') as any[];
-
-            if (dbCauseEvents.length == 0) {
-		console.log('Cause does not have any events');
-		res.status(HttpStatus.NOT_FOUND);
-		res.end();
-		return;
-            }
-	} catch (e) {
+	    
 	    console.log(`DB read error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
+	    if (isLocal(config.ENV)) {
                 console.log(e);
-            }
-            
+	    }
+	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
-	    return;
 	}
-
-	// Return joined value from auth0 and db
-
-        const causeEvents = dbCauseEvents.map(dbCE => {
-            const causeEvent = new CauseEvent();
-            causeEvent.id = dbCE['cause_event_id'];
-            causeEvent.type = dbCE['cause_event_type'];
-            causeEvent.timestamp = dbCE['cause_event_timestamp'];
-            causeEvent.data =
-		causeEvent.type == CauseEventType.Created ? createCauseRequestMarshaller.extract(dbCE['cause_event_data'])
-		: causeEvent.type == CauseEventType.Updated ? updateCauseRequestMarshaller.extract(dbCE['cause_event_data'])
-		: dbCE['cause_event_data'];
-            return causeEvent;
-        });
-
-        const causeEventsResponse = new CauseEventsResponse();
-        causeEventsResponse.events = causeEvents;
-	
-        res.write(JSON.stringify(causeEventsResponseMarshaller.pack(causeEventsResponse)));
-        res.end();
     }));    
 
     const privateActionsOverviewRouter = express.Router();
@@ -952,20 +458,23 @@ async function main() {
     privateActionsOverviewRouter.use(newIdentityMiddleware(config.ENV, identityClient));
 
     privateActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
-	// Retrieve donations and shares.
-	let dbDonations: any[]|null = null;
-	let dbShares: any[]|null = null;
 	try {
-	    dbDonations = await conn('core.donation')
-		.join('core.cause', 'core.donation.cause_id', '=', 'core.cause.id')
-		.where({'core.donation.user_id': req.user.id})
-		.select(donationFields.concat(causePublicFields)) as any[];
+	    const userActionsOverview = await repository.getActionsOverview(req.user);
 
-	    dbShares = await conn('core.share')
-		.join('core.cause', 'core.share.cause_id', '=', 'core.cause.id')
-		.where({'core.share.user_id': req.user.id})
-		.select(shareFields.concat(causePublicFields)) as any[];
+	    const actionsOverviewResponse = new ActionsOverviewResponse();
+	    actionsOverviewResponse.actionsOverview = userActionsOverview;
+
+	    res.write(JSON.stringify(actionsOverviewResponseMarshaller.pack(actionsOverviewResponse)));
+	    res.status(HttpStatus.OK);
+	    res.end();
 	} catch (e) {
+	    if (e.name == 'CauseNotFoundError') {
+		console.log(e.message);
+		res.status(HttpStatus.NOT_FOUND);
+		res.end();
+		return;
+	    }
+	    
 	    console.log(`DB read error - ${e.toString()}`);
 	    if (isLocal(config.ENV)) {
                 console.log(e);
@@ -973,64 +482,7 @@ async function main() {
 	    
 	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
 	    res.end();
-	    return;
 	}
-
-	// Return value.
-	const donations = dbDonations.map((dbD) => {
-	    const cause = new PublicCause();
-	    cause.id = dbD['cause_id'];
-	    cause.state = dbD['cause_state'];
-	    cause.timeCreated = new Date(dbD['cause_time_created']);
-	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
-	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
-	    cause.title = dbD['cause_title'];
-	    cause.description = dbD['cause_description'];
-	    cause.pictureSet = pictureSetMarshaller.extract(dbD['cause_picture_set']);
-	    cause.deadline = dbD['cause_deadline'];
-	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
-
-	    const donationForUser = new DonationForUser();
-	    donationForUser.id = dbD['donation_id'];
-	    donationForUser.timeCreated = dbD['donation_time_created'];
-	    donationForUser.forCause = cause;
-	    donationForUser.amount = currencyAmountMarshaller.extract(dbD['donation_amount']);
-
-	    return donationForUser;
-	});
-
-	const shares = dbShares.map((dbD) => {
-	    const cause = new PublicCause();
-	    cause.id = dbD['cause_id'];
-	    cause.state = dbD['cause_state'];
-	    cause.timeCreated = new Date(dbD['cause_time_created']);
-	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
-	    cause.slug = _latestSlug(dbD['cause_slugs'].slugs);
-	    cause.title = dbD['cause_title'];
-	    cause.description = dbD['cause_description'];
-	    cause.pictureSet = pictureSetMarshaller.extract(dbD['cause_picture_set']);
-	    cause.deadline = dbD['cause_deadline'];
-	    cause.goal = currencyAmountMarshaller.extract(dbD['cause_goal']);
-
-	    const shareForUser = new ShareForUser();
-	    shareForUser.id = dbD['share_id'];
-	    shareForUser.timeCreated = dbD['share_time_created'];
-	    shareForUser.forCause = cause;
-            shareForUser.facebookPostId = dbD['share_facebook_post_id'];
-
-	    return shareForUser;
-	});	
-
-	const userActionsOverview = new UserActionsOverview();
-	userActionsOverview.donations = donations;
-	userActionsOverview.shares = shares;
-
-	const actionsOverviewResponse = new ActionsOverviewResponse();
-	actionsOverviewResponse.actionsOverview = userActionsOverview;
-
-	res.write(JSON.stringify(actionsOverviewResponseMarshaller.pack(actionsOverviewResponse)));
-	res.status(HttpStatus.OK);
-	res.end();
     }));
 
     app.use('/public/causes', publicCausesRouter);
@@ -1040,25 +492,6 @@ async function main() {
     app.listen(config.PORT, config.ADDRESS, () => {
 	console.log(`Started core service on ${config.ADDRESS}:${config.PORT}`);
     });
-}
-
-
-function _latestSlug(slugs: any[]): string {
-    if (slugs.length == 0) {
-	throw new Error('Should have some slugs');
-    }
-
-    let latestSlug = slugs[0].slug;
-    let latestSlugTime = slugs[0].timeCreated;
-
-    for (let i = 1; i < slugs.length; i++) {
-	if (slugs[i].timeCreated > latestSlugTime) {
-	    latestSlug = slugs[i].slug;
-	    latestSlugTime = slugs[i].timeCreated;
-	}
-    }
-
-    return latestSlug;
 }
 
 
