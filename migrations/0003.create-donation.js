@@ -4,12 +4,13 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         id Serial,
 	PRIMARY KEY (id),
         -- Core properties
-        time_created Timestamp NOT NULL,
         amount Json NOT NULL,
         -- Foreign key
         cause_id Int NOT NULL REFERENCES core.cause(id),
         -- Foreign key to external systems
-        user_id Int NOT NULL
+        user_id Int NOT NULL,
+        -- Denormalized data
+        time_created Timestamp NOT NULL
     );
 
     CREATE INDEX donation_cause_id ON core.donation(cause_id);

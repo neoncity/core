@@ -69,15 +69,15 @@ export class Repository {
     private static readonly _causePublicFields = [
 	'core.cause.id as cause_id',
 	'core.cause.state as cause_state',
-	'core.cause.user_id as cause_user_id',
-	'core.cause.time_created as cause_time_created',
-	'core.cause.time_last_updated as cause_time_last_updated',
 	'core.cause.slugs as cause_slugs',
 	'core.cause.title as cause_title',
 	'core.cause.description as cause_description',
 	'core.cause.picture_set as cause_picture_set',
 	'core.cause.deadline as cause_deadline',
-	'core.cause.goal as cause_goal'
+	'core.cause.goal as cause_goal',	
+	'core.cause.user_id as cause_user_id',
+	'core.cause.time_created as cause_time_created',
+	'core.cause.time_last_updated as cause_time_last_updated'
     ];
 
     private static readonly _causePrivateFields = Repository._causePublicFields.concat('core.cause.bank_info as cause_bank_info');
@@ -91,18 +91,18 @@ export class Repository {
 
     private static readonly _donationFields = [
     	'core.donation.id as donation_id',
-    	'core.donation.time_created as donation_time_created',
+    	'core.donation.amount as donation_amount',
     	'core.donation.cause_id as donation_cause_id',
     	'core.donation.user_id as donation_user_id',
-    	'core.donation.amount as donation_amount'
+    	'core.donation.time_created as donation_time_created'
     ];
 
     private static readonly _shareFields = [
     	'core.share.id as share_id',
-    	'core.share.time_created as share_time_created',
     	'core.share.cause_id as share_cause_id',
     	'core.share.user_id as share_user_id',
-        'core.share.facebook_post_id as facebook_post_id'
+        'core.share.facebook_post_id as facebook_post_id',
+    	'core.share.time_created as share_time_created'
     ];
 
     private readonly _conn: knex;
@@ -137,14 +137,14 @@ export class Repository {
 	    const cause = new PublicCause();
 	    cause.id = dbC['cause_id'];
 	    cause.state = dbC['cause_state'];
-	    cause.timeCreated = new Date(dbC['cause_time_created']);
-	    cause.timeLastUpdated = new Date(dbC['cause_time_last_updated']);
 	    cause.slug = Repository._latestSlug(dbC['cause_slugs'].slugs);
 	    cause.title = dbC['cause_title'];
 	    cause.description = dbC['cause_description'];
 	    cause.pictureSet = this._pictureSetMarshaller.extract(dbC['cause_picture_set']);
 	    cause.deadline = dbC['cause_deadline'];
 	    cause.goal = this._currencyAmountMarshaller.extract(dbC['cause_goal']);
+	    cause.timeCreated = new Date(dbC['cause_time_created']);
+	    cause.timeLastUpdated = new Date(dbC['cause_time_last_updated']);
 
 	    return cause;
 	});
@@ -165,14 +165,14 @@ export class Repository {
 	const cause = new PublicCause();
 	cause.id = dbCause['cause_id'];
 	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
 	cause.pictureSet = this._pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 
 	return cause;
     }
@@ -238,8 +238,6 @@ export class Repository {
 	const cause = new PrivateCause();
 	cause.id = dbId;
 	cause.state = CauseState.Active;
-	cause.timeCreated = requestTime;
-	cause.timeLastUpdated = requestTime;
 	cause.slug = slug;
 	cause.title = createCauseRequest.title;
 	cause.description = createCauseRequest.description;
@@ -247,6 +245,8 @@ export class Repository {
 	cause.deadline = createCauseRequest.deadline;
 	cause.goal = createCauseRequest.goal;
 	cause.bankInfo = createCauseRequest.bankInfo;
+	cause.timeCreated = requestTime;
+	cause.timeLastUpdated = requestTime;
 
 	return cause;
     }
@@ -270,8 +270,6 @@ export class Repository {
 	const cause = new PrivateCause();
 	cause.id = dbCause['cause_id'];
 	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
@@ -279,6 +277,8 @@ export class Repository {
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
 	cause.bankInfo = this._bankInfoMarshaller.extract(dbCause['cause_bank_info']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 
 	return cause;
     }
@@ -349,8 +349,6 @@ export class Repository {
 	const cause = new PrivateCause();
 	cause.id = dbCause['cause_id'];
 	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
@@ -358,6 +356,8 @@ export class Repository {
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
 	cause.bankInfo = this._bankInfoMarshaller.extract(dbCause['cause_bank_info']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 
 	return cause;
     }
@@ -448,10 +448,10 @@ export class Repository {
 		  .from('core.donation')
 		  .returning('id')
 		  .insert({
-		      'time_created': requestTime,
 		      'amount': this._currencyAmountMarshaller.pack(createDonationRequest.amount),
 		      'cause_id': causeId,
-		      'user_id': user.id
+		      'user_id': user.id,
+		      'time_created': requestTime
 		  });
 
 	    dbId = dbIds[0];
@@ -470,20 +470,20 @@ export class Repository {
 	const cause = new PublicCause();
 	cause.id = dbCause['cause_id'];
 	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
 	cause.pictureSet = this._pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 
 	const donationForUser = new DonationForUser();
 	donationForUser.id = dbId as number;
-	donationForUser.timeCreated = requestTime;
-	donationForUser.forCause = cause;
 	donationForUser.amount = createDonationRequest.amount;
+	donationForUser.forCause = cause;
+	donationForUser.timeCreated = requestTime;
 
 	return donationForUser;
     }
@@ -531,20 +531,20 @@ export class Repository {
 	const cause = new PublicCause();
 	cause.id = dbCause['cause_id'];
 	cause.state = dbCause['cause_state'];
-	cause.timeCreated = new Date(dbCause['cause_time_created']);
-	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 	cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
 	cause.title = dbCause['cause_title'];
 	cause.description = dbCause['cause_description'];
 	cause.pictureSet = this._pictureSetMarshaller.extract(dbCause['cause_picture_set']);
 	cause.deadline = dbCause['cause_deadline'];
 	cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
+	cause.timeCreated = new Date(dbCause['cause_time_created']);
+	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 
 	const shareForUser = new ShareForUser();
 	shareForUser.id = dbId as number;
-	shareForUser.timeCreated = requestTime;
 	shareForUser.forCause = cause;
         shareForUser.facebookPostId = createShareRequest.facebookPostId;
+	shareForUser.timeCreated = requestTime;
 
 	return shareForUser;
     }
@@ -639,20 +639,20 @@ export class Repository {
 	    const cause = new PublicCause();
 	    cause.id = dbD['cause_id'];
 	    cause.state = dbD['cause_state'];
-	    cause.timeCreated = new Date(dbD['cause_time_created']);
-	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
 	    cause.slug = Repository._latestSlug(dbD['cause_slugs'].slugs);
 	    cause.title = dbD['cause_title'];
 	    cause.description = dbD['cause_description'];
 	    cause.pictureSet = this._pictureSetMarshaller.extract(dbD['cause_picture_set']);
 	    cause.deadline = dbD['cause_deadline'];
 	    cause.goal = this._currencyAmountMarshaller.extract(dbD['cause_goal']);
+	    cause.timeCreated = new Date(dbD['cause_time_created']);
+	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
 
 	    const shareForUser = new ShareForUser();
 	    shareForUser.id = dbD['share_id'];
-	    shareForUser.timeCreated = dbD['share_time_created'];
 	    shareForUser.forCause = cause;
             shareForUser.facebookPostId = dbD['share_facebook_post_id'];
+	    shareForUser.timeCreated = dbD['share_time_created'];
 
 	    return shareForUser;
 	});	
