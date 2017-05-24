@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -28,9 +28,9 @@
   },
   "dependencies": {
     "@neoncity/common-js": "~1",
-    "@neoncity/common-server-js": "~0",
+    "@neoncity/common-server-js": "~1",
     "@neoncity/core-sdk-js": "~4",
-    "@neoncity/identity-sdk-js": "~1",
+    "@neoncity/identity-sdk-js": "~2",
     "async-middleware": "=1.0.2",
     "body-parser": "=1.17.1",
     "es6-promise": "=4.0.5",
@@ -38,7 +38,7 @@
     "http-status-codes": "=1.1.6",
     "knex": "=0.12.6",
     "pg": "=6.1.2",
-    "raynor": "=0.7.2"
+    "raynor": "=0.8.0"
   },
   "devDependencies": {
     "@neoncity/togemfury": "~0",
