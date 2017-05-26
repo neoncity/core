@@ -17,8 +17,15 @@ export function newIdentityMiddleware(env: Env, identityClient: IdentityClient):
 	    return;
 	}
 
+	if (req.authInfo.auth0AccessToken == null) {
+	    console.log('No acccess token');
+	    res.status(HttpStatus.BAD_REQUEST);
+	    res.end();
+	    return;
+	}	    
+
 	try {
-	    req.user = await identityClient.getUser(req.authInfo.auth0AccessToken);
+	    req.user = await identityClient.getUser(req.authInfo.sessionId, req.authInfo.auth0AccessToken);
 	} catch (e) {
 	    // In lieu of instanceof working
 	    if (e.name == 'UnauthorizedIdentityError') {
