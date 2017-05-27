@@ -2,27 +2,30 @@ import * as knex from 'knex'
 import { Marshaller, MarshalFrom, SlugMarshaller } from 'raynor'
 
 import { slugify } from '@neoncity/common-js'
-import { BankInfo,
-	 BankInfoMarshaller,
-	 CauseEvent,
-	 CauseEventType,
-	 CauseAnalytics,
-	 CauseState,
-	 CreateCauseRequest,
-	 CreateDonationRequest,
-	 CreateShareRequest,
-	 CurrencyAmount,
-	 DonationForUser,
-	 DonationEventType,
-	 PictureSet,
-	 PictureSetMarshaller,
-	 PrivateCause,
-	 PublicCause,
-	 ShareForUser,
-	 ShareEventType,
-	 UpdateCauseRequest,
-	 UserActionsOverview } from '@neoncity/core-sdk-js'
-import { User } from '@neoncity/identity-sdk-js'
+import {
+    BankInfo,
+    BankInfoMarshaller,
+    CauseEventType,
+    CauseAnalytics,
+    CauseState,
+    CreateCauseRequest,
+    CreateDonationRequest,
+    CreateShareRequest,
+    CurrencyAmount,
+    DonationForSession,
+    DonationEventType,
+    PictureSet,
+    PictureSetMarshaller,
+    PrivateCause,
+    PublicCause,
+    ShareForSession,
+    ShareEventType,
+    UpdateCauseRequest,
+    UserActionsOverview } from '@neoncity/core-sdk-js'
+import {
+    AuthInfo,
+    Session,
+    User } from '@neoncity/identity-sdk-js'
 
 
 export class RepositoryError extends Error {
@@ -82,17 +85,11 @@ export class Repository {
 
     private static readonly _causePrivateFields = Repository._causePublicFields.concat('core.cause.bank_info as cause_bank_info');
 
-    private static readonly _causeEventFields = [
-    	'core.cause_event.id as cause_event_id',
-    	'core.cause_event.type as cause_event_type',
-    	'core.cause_event.timestamp as cause_event_timestamp',
-    	'core.cause_event.data as cause_event_data'
-    ];
-
     private static readonly _donationFields = [
     	'core.donation.id as donation_id',
     	'core.donation.amount as donation_amount',
     	'core.donation.cause_id as donation_cause_id',
+	'core.donation.session_id as donation_session_id',
     	'core.donation.user_id as donation_user_id',
     	'core.donation.time_created as donation_time_created'
     ];
@@ -100,6 +97,7 @@ export class Repository {
     private static readonly _shareFields = [
     	'core.share.id as share_id',
     	'core.share.cause_id as share_cause_id',
+	'core.share.session_id as share_session_id',
     	'core.share.user_id as share_user_id',
         'core.share.facebook_post_id as facebook_post_id',
     	'core.share.time_created as share_time_created'
@@ -177,7 +175,7 @@ export class Repository {
 	return cause;
     }
 
-    async createCause(user: User, createCauseRequest: CreateCauseRequest, requestTime: Date): Promise<PrivateCause> {
+    async createCause(session: Session, createCauseRequest: CreateCauseRequest, requestTime: Date): Promise<PrivateCause> {
 	// Check deadline is appropriate.
 	// TODO: do it
 
@@ -208,7 +206,7 @@ export class Repository {
 			  'deadline': createCauseRequest.deadline,
 			  'goal': this._currencyAmountMarshaller.pack(createCauseRequest.goal),
 			  'bank_info': this._bankInfoMarshaller.pack(createCauseRequest.bankInfo),
-			  'user_id': user.id,
+			  'user_id': (session.user as User).id,
 			  'time_created': requestTime,
 			  'time_last_updated': requestTime,
 			  'time_removed': null
@@ -251,10 +249,10 @@ export class Repository {
 	return cause;
     }
 
-    async getCause(user: User): Promise<PrivateCause> {
+    async getCause(session: Session): Promise<PrivateCause> {
 	const dbCauses = await this._conn('core.cause')
 	      .select(Repository._causePrivateFields)
-	      .where({user_id: user.id})
+	      .where({user_id: (session.user as User).id})
 	      .limit(1);
 
 	if (dbCauses.length == 0) {
@@ -283,7 +281,7 @@ export class Repository {
 	return cause;
     }
 
-    async updateCause(user: User, updateCauseRequest: UpdateCauseRequest, requestTime: Date): Promise<PrivateCause> {
+    async updateCause(session: Session, updateCauseRequest: UpdateCauseRequest, requestTime: Date): Promise<PrivateCause> {
 	// TODO: verify deadlline is OK.
 
 	// TODO: improve typing here.
@@ -321,7 +319,7 @@ export class Repository {
 	await this._conn.transaction(async (trx) => {
 	    const dbCauses = await trx
 		  .from('core.cause')
-		  .where({user_id: user.id})
+		  .where({user_id: (session.user as User).id})
 		  .returning(Repository._causePrivateFields)
 		  .update(updateDict) as any[];
 
@@ -362,11 +360,11 @@ export class Repository {
 	return cause;
     }
 
-    async deleteCause(user: User, requestTime: Date): Promise<void> {
+    async deleteCause(session: Session, requestTime: Date): Promise<void> {
 	await this._conn.transaction(async (trx) => {
 	    const dbIds = await trx
 		  .from('core.cause')
-		  .where({user_id: user.id, state: CauseState.Active})
+		  .where({user_id: (session.user as User).id, state: CauseState.Active})
 		  .update({
 		      'state': CauseState.Removed,
 		      'time_removed': requestTime
@@ -390,45 +388,7 @@ export class Repository {
 	});
     }
 
-    async getCauseEvents(user: User): Promise<CauseEvent[]> {
-	const dbCauses = await this._conn('core.cause')
-	      .select(['id'])
-	      .where({user_id: user.id, state: CauseState.Active})
-	      .limit(1);
-
-	if (dbCauses.length == 0) {
-	    throw new CauseNotFoundError('Cause does not exist');
-	}
-
-	const dbCauseId = dbCauses[0]['id'];
-
-        const dbCauseEvents = await this._conn('core.cause_event')
-              .select(Repository._causeEventFields)
-              .where({cause_id: dbCauseId})
-              .orderBy('timestamp', 'asc') as any[];
-
-        if (dbCauseEvents.length == 0) {
-	    throw new CauseNotFoundError('Cause does not have any events');
-        }
-
-	// Return joined value from auth0 and db
-
-        const causeEvents = dbCauseEvents.map(dbCE => {
-            const causeEvent = new CauseEvent();
-            causeEvent.id = dbCE['cause_event_id'];
-            causeEvent.type = dbCE['cause_event_type'];
-            causeEvent.timestamp = dbCE['cause_event_timestamp'];
-            causeEvent.data =
-		causeEvent.type == CauseEventType.Created ? this._createCauseRequestMarshaller.extract(dbCE['cause_event_data'])
-		: causeEvent.type == CauseEventType.Updated ? this._updateCauseRequestMarshaller.extract(dbCE['cause_event_data'])
-		: dbCE['cause_event_data'];
-            return causeEvent;
-        });
-
-	return causeEvents;
-    }
-
-    async createDonation(user: User, causeId: number, createDonationRequest: CreateDonationRequest, requestTime: Date): Promise<DonationForUser> {
+    async createDonation(authInfo: AuthInfo, session: Session, causeId: number, createDonationRequest: CreateDonationRequest, requestTime: Date): Promise<DonationForSession> {
 	let dbCause: any|null = null;
 	let dbId: number = -1;
 	
@@ -450,7 +410,8 @@ export class Repository {
 		  .insert({
 		      'amount': this._currencyAmountMarshaller.pack(createDonationRequest.amount),
 		      'cause_id': causeId,
-		      'user_id': user.id,
+		      'session_id': session.hasUser() ? null : authInfo.sessionId,
+		      'user_id': session.hasUser ? (session.user as User).id : null,
 		      'time_created': requestTime
 		  });
 
@@ -479,16 +440,16 @@ export class Repository {
 	cause.timeCreated = new Date(dbCause['cause_time_created']);
 	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 
-	const donationForUser = new DonationForUser();
-	donationForUser.id = dbId as number;
-	donationForUser.amount = createDonationRequest.amount;
-	donationForUser.forCause = cause;
-	donationForUser.timeCreated = requestTime;
+	const donationForSession = new DonationForSession();
+	donationForSession.id = dbId as number;
+	donationForSession.amount = createDonationRequest.amount;
+	donationForSession.forCause = cause;
+	donationForSession.timeCreated = requestTime;
 
-	return donationForUser;
+	return donationForSession;
     }
 
-    async createShare(user: User, causeId: number, createShareRequest: CreateShareRequest, requestTime: Date): Promise<ShareForUser> {
+    async createShare(authInfo: AuthInfo, session: Session, causeId: number, createShareRequest: CreateShareRequest, requestTime: Date): Promise<ShareForSession> {
 	// Create share
 	let dbCause: any|null = null;
 	let dbId: number = -1;
@@ -510,9 +471,10 @@ export class Repository {
 		  .returning('id')
 		  .insert({
 		      'time_created': requestTime,
-                      'facebook_post_id': createShareRequest.facebookPostId,
 		      'cause_id': causeId,
-		      'user_id': user.id
+		      'session_id': session.hasUser() ? null : authInfo.sessionId,
+		      'user_id': session.hasUser() ? (session.user as User).id : null,
+                      'facebook_post_id': createShareRequest.facebookPostId
 		  });
 
 	    dbId = dbIds[0];
@@ -540,19 +502,19 @@ export class Repository {
 	cause.timeCreated = new Date(dbCause['cause_time_created']);
 	cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
 
-	const shareForUser = new ShareForUser();
-	shareForUser.id = dbId as number;
-	shareForUser.forCause = cause;
-        shareForUser.facebookPostId = createShareRequest.facebookPostId;
-	shareForUser.timeCreated = requestTime;
+	const shareForSession = new ShareForSession();
+	shareForSession.id = dbId as number;
+	shareForSession.forCause = cause;
+        shareForSession.facebookPostId = createShareRequest.facebookPostId;
+	shareForSession.timeCreated = requestTime;
 
-	return shareForUser;
+	return shareForSession;
     }
 
-    async getCauseAnalytics(user: User): Promise<CauseAnalytics> {
+    async getCauseAnalytics(session: Session): Promise<CauseAnalytics> {
 	const dbCauses = await this._conn('core.cause')
 	      .select(['id', 'goal'])
-	      .where({user_id: user.id, state: CauseState.Active})
+	      .where({user_id: (session.user as User).id, state: CauseState.Active})
 	      .limit(1);
 
 	if (dbCauses.length == 0) {
@@ -601,15 +563,15 @@ export class Repository {
 	return causeAnalytics;
     }
 
-    async getActionsOverview(user: User): Promise<UserActionsOverview> {
+    async getUserActionsOverview(session: Session): Promise<UserActionsOverview> {
 	const dbDonations = await this._conn('core.donation')
 	      .join('core.cause', 'core.donation.cause_id', '=', 'core.cause.id')
-		.where({'core.donation.user_id': user.id})
+	      .where({'core.donation.user_id': (session.user as User).id})
 	      .select(Repository._donationFields.concat(Repository._causePublicFields)) as any[];
 
 	const dbShares = await this._conn('core.share')
 	      .join('core.cause', 'core.share.cause_id', '=', 'core.cause.id')
-	      .where({'core.share.user_id': user.id})
+	      .where({'core.share.user_id': (session.user as User).id})
 	      .select(Repository._shareFields.concat(Repository._causePublicFields)) as any[];
 
 	// Return value.
@@ -626,13 +588,13 @@ export class Repository {
 	    cause.deadline = dbD['cause_deadline'];
 	    cause.goal = this._currencyAmountMarshaller.extract(dbD['cause_goal']);
 
-	    const donationForUser = new DonationForUser();
-	    donationForUser.id = dbD['donation_id'];
-	    donationForUser.timeCreated = dbD['donation_time_created'];
-	    donationForUser.forCause = cause;
-	    donationForUser.amount = this._currencyAmountMarshaller.extract(dbD['donation_amount']);
+	    const donationForSession = new DonationForSession();
+	    donationForSession.id = dbD['donation_id'];
+	    donationForSession.timeCreated = dbD['donation_time_created'];
+	    donationForSession.forCause = cause;
+	    donationForSession.amount = this._currencyAmountMarshaller.extract(dbD['donation_amount']);
 
-	    return donationForUser;
+	    return donationForSession;
 	});
 
 	const shares = dbShares.map((dbD) => {
@@ -648,13 +610,13 @@ export class Repository {
 	    cause.timeCreated = new Date(dbD['cause_time_created']);
 	    cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
 
-	    const shareForUser = new ShareForUser();
-	    shareForUser.id = dbD['share_id'];
-	    shareForUser.forCause = cause;
-            shareForUser.facebookPostId = dbD['share_facebook_post_id'];
-	    shareForUser.timeCreated = dbD['share_time_created'];
+	    const shareForSession = new ShareForSession();
+	    shareForSession.id = dbD['share_id'];
+	    shareForSession.forCause = cause;
+            shareForSession.facebookPostId = dbD['share_facebook_post_id'];
+	    shareForSession.timeCreated = dbD['share_time_created'];
 
-	    return shareForUser;
+	    return shareForSession;
 	});	
 
 	const userActionsOverview = new UserActionsOverview();

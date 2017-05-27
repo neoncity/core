@@ -6,25 +6,31 @@ import * as knex from 'knex'
 import { MarshalFrom } from 'raynor'
 
 import { isLocal } from '@neoncity/common-js/env'
-import { newAuthInfoMiddleware, newCorsMiddleware, newRequestTimeMiddleware, startupMigration } from '@neoncity/common-server-js'
-import { ActionsOverviewResponse,
-	 CauseAnalyticsResponse,
-	 CauseEventsResponse,
-	 CreateCauseRequest,
-	 CreateDonationRequest,
-	 CreateShareRequest,
-	 PublicCausesResponse,
-	 PublicCauseResponse,
-	 PrivateCauseResponse,
-	 PrivateCauseResponseMarshaller,
-	 UpdateCauseRequest,
-	 UserDonationResponse,
-	 UserShareResponse} from '@neoncity/core-sdk-js'
-import { IdentityClient, newIdentityClient } from '@neoncity/identity-sdk-js'
+import {
+    AuthInfoLevel,
+    newAuthInfoMiddleware,
+    newCorsMiddleware,
+    newRequestTimeMiddleware,
+    newSessionMiddleware,
+    SessionLevel,
+    startupMigration } from '@neoncity/common-server-js'
+import {
+    CauseAnalyticsResponse,
+    CreateCauseRequest,
+    CreateDonationRequest,
+    CreateShareRequest,
+    PublicCausesResponse,
+    PublicCauseResponse,
+    PrivateCauseResponse,
+    PrivateCauseResponseMarshaller,
+    SessionDonationResponse,
+    SessionShareResponse,
+    UpdateCauseRequest,
+    UserActionsOverviewResponse} from '@neoncity/core-sdk-js'
+import { AuthInfo, IdentityClient, newIdentityClient, Session } from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
 import { CoreRequest } from './core-request'
-import { newIdentityMiddleware } from './identity-middleware'
 import { Repository } from './repository'
 
 
@@ -45,22 +51,20 @@ async function main() {
     const publicCausesResponseMarshaller = new (MarshalFrom(PublicCausesResponse))();
     const publicCauseResponseMarshaller = new (MarshalFrom(PublicCauseResponse))();
     const privateCauseResponseMarshaller = new PrivateCauseResponseMarshaller();
-    const userDonationResponseMarshaller = new (MarshalFrom(UserDonationResponse))();
-    const userShareResponseMarshaller = new (MarshalFrom(UserShareResponse))();
-    const causeEventsResponseMarshaller = new (MarshalFrom(CauseEventsResponse))();
+    const sessionDonationResponseMarshaller = new (MarshalFrom(SessionDonationResponse))();
+    const sessionShareResponseMarshaller = new (MarshalFrom(SessionShareResponse))();
     const causeAnalyticsResponseMarshaller = new (MarshalFrom(CauseAnalyticsResponse))();
-    const actionsOverviewResponseMarshaller = new (MarshalFrom(ActionsOverviewResponse))();
+    const userActionsOverviewResponseMarshaller = new (MarshalFrom(UserActionsOverviewResponse))();
 
     const repository = new Repository(conn);
 
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS));
-    app.use(newAuthInfoMiddleware());
     app.use(bodyParser.json());
 
     const publicCausesRouter = express.Router();
 
-    publicCausesRouter.get('/', wrap(async (_: CoreRequest, res: express.Response) => {
+    publicCausesRouter.get('/', [newAuthInfoMiddleware(AuthInfoLevel.None), newSessionMiddleware(SessionLevel.None, config.ENV, identityClient)], wrap(async (_: CoreRequest, res: express.Response) => {
 	try {
 	    const publicCauses = await repository.getPublicCauses();
 
@@ -82,7 +86,7 @@ async function main() {
 	}
     }));
 
-    publicCausesRouter.get('/:causeId', wrap(async (req: CoreRequest, res: express.Response) => {
+    publicCausesRouter.get('/:causeId', [newAuthInfoMiddleware(AuthInfoLevel.None), newSessionMiddleware(SessionLevel.None, config.ENV, identityClient)], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -120,7 +124,7 @@ async function main() {
 	}
     }));
 
-    publicCausesRouter.post('/:causeId/donations', newIdentityMiddleware(config.ENV, identityClient), wrap(async (req: CoreRequest, res: express.Response) => {
+    publicCausesRouter.post('/:causeId/donations', [newAuthInfoMiddleware(AuthInfoLevel.SessionId), newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient)], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -146,12 +150,12 @@ async function main() {
 	}
 
 	try {
-	    const donationForUser = await repository.createDonation(req.user, causeId, createDonationRequest, req.requestTime);
+	    const donationForSession = await repository.createDonation(req.authInfo as AuthInfo, req.session as Session, causeId, createDonationRequest, req.requestTime);
 
-	    const userDonationResponse = new UserDonationResponse();
-	    userDonationResponse.donation = donationForUser;
+	    const sessionDonationResponse = new SessionDonationResponse();
+	    sessionDonationResponse.donation = donationForSession;
 
-	    res.write(JSON.stringify(userDonationResponseMarshaller.pack(userDonationResponse)));
+	    res.write(JSON.stringify(sessionDonationResponseMarshaller.pack(sessionDonationResponse)));
             res.status(HttpStatus.CREATED);
             res.end();
 	} catch (e) {
@@ -172,7 +176,7 @@ async function main() {
 	}
     }));
 
-    publicCausesRouter.post('/:causeId/shares', newIdentityMiddleware(config.ENV, identityClient), wrap(async (req: CoreRequest, res: express.Response) => {
+    publicCausesRouter.post('/:causeId/shares', [newAuthInfoMiddleware(AuthInfoLevel.SessionId), newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient)], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -198,12 +202,12 @@ async function main() {
 	}
 
 	try {
-	    const shareForUser = await repository.createShare(req.user, causeId, createShareRequest, req.requestTime);
+	    const shareForSession = await repository.createShare(req.authInfo as AuthInfo, req.session as Session, causeId, createShareRequest, req.requestTime);
 
-	    const userShareResponse = new UserShareResponse();
-	    userShareResponse.share = shareForUser;
+	    const sessionShareResponse = new SessionShareResponse();
+	    sessionShareResponse.share = shareForSession;
 
-	    res.write(JSON.stringify(userShareResponseMarshaller.pack(userShareResponse)));
+	    res.write(JSON.stringify(sessionShareResponseMarshaller.pack(sessionShareResponse)));
             res.status(HttpStatus.CREATED);
             res.end();
 	} catch (e) {
@@ -226,7 +230,8 @@ async function main() {
 
     const privateCausesRouter = express.Router();
 
-    privateCausesRouter.use(newIdentityMiddleware(config.ENV, identityClient));
+    privateCausesRouter.use(newAuthInfoMiddleware(AuthInfoLevel.SessionIdAndAuth0AccessToken));
+    privateCausesRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
 
     privateCausesRouter.post('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse creation data.
@@ -245,7 +250,7 @@ async function main() {
 	}
 
 	try {
-	    const cause = await repository.createCause(req.user, createCauseRequest, req.requestTime);
+	    const cause = await repository.createCause(req.session as Session, createCauseRequest, req.requestTime);
 
 	    const privateCauseResponse = new PrivateCauseResponse();
 	    privateCauseResponse.causeIsRemoved = false;
@@ -281,7 +286,7 @@ async function main() {
 
     privateCausesRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	try {
-	    const cause = await repository.getCause(req.user);
+	    const cause = await repository.getCause(req.session as Session);
 	    
 	    const privateCauseResponse = new PrivateCauseResponse();
 	    privateCauseResponse.causeIsRemoved = false;
@@ -321,7 +326,7 @@ async function main() {
 
     privateCausesRouter.get('/analytics', wrap(async (req: CoreRequest, res: express.Response) => {
 	try {
-	    const causeAnalytics = await repository.getCauseAnalytics(req.user);
+	    const causeAnalytics = await repository.getCauseAnalytics(req.session as Session);
 	    
 	    const causeAnalyticsResponse = new CauseAnalyticsResponse();
 	    causeAnalyticsResponse.causeAnalytics = causeAnalytics;
@@ -363,7 +368,7 @@ async function main() {
 	}
 
 	try {
-	    const cause = await repository.updateCause(req.user, updateCauseRequest, req.requestTime);
+	    const cause = await repository.updateCause(req.session as Session, updateCauseRequest, req.requestTime);
 
 	    const privateCauseResponse = new PrivateCauseResponse();
 	    privateCauseResponse.causeIsRemoved = false;
@@ -404,7 +409,7 @@ async function main() {
     privateCausesRouter.delete('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	// Mark the cause of this user as deleted.
 	try {
-	    await repository.deleteCause(req.user, req.requestTime);
+	    await repository.deleteCause(req.session as Session, req.requestTime);
 
 	    res.status(HttpStatus.NO_CONTENT);
             res.end();
@@ -426,45 +431,18 @@ async function main() {
 	}
     }));
 
-    privateCausesRouter.get('/events', wrap(async (req: CoreRequest, res: express.Response) => {
-	try {
-	    const causeEvents = await repository.getCauseEvents(req.user);
-
-            const causeEventsResponse = new CauseEventsResponse();
-            causeEventsResponse.events = causeEvents;
-	    
-            res.write(JSON.stringify(causeEventsResponseMarshaller.pack(causeEventsResponse)));
-            res.end();
-	} catch (e) {
-	    if (e.name == 'CauseNotFoundError') {
-		console.log(e.message);
-		res.status(HttpStatus.NOT_FOUND);
-		res.end();
-		return;
-	    }
-	    
-	    console.log(`DB read error - ${e.toString()}`);
-	    if (isLocal(config.ENV)) {
-                console.log(e);
-	    }
-	    
-	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
-	    res.end();
-	}
-    }));    
-
     const privateActionsOverviewRouter = express.Router();
 
-    privateActionsOverviewRouter.use(newIdentityMiddleware(config.ENV, identityClient));
+    privateActionsOverviewRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
 
     privateActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	try {
-	    const userActionsOverview = await repository.getActionsOverview(req.user);
+	    const userActionsOverview = await repository.getUserActionsOverview(req.session as Session);
 
-	    const actionsOverviewResponse = new ActionsOverviewResponse();
-	    actionsOverviewResponse.actionsOverview = userActionsOverview;
+	    const userActionsOverviewResponse = new UserActionsOverviewResponse();
+	    userActionsOverviewResponse.userActionsOverview = userActionsOverview;
 
-	    res.write(JSON.stringify(actionsOverviewResponseMarshaller.pack(actionsOverviewResponse)));
+	    res.write(JSON.stringify(userActionsOverviewResponseMarshaller.pack(userActionsOverviewResponse)));
 	    res.status(HttpStatus.OK);
 	    res.end();
 	} catch (e) {
