@@ -367,6 +367,7 @@ export class Repository {
 		  .where({user_id: (session.user as User).id, state: CauseState.Active})
 		  .update({
 		      'state': CauseState.Removed,
+		      'time_last_updated': requestTime,		      
 		      'time_removed': requestTime
 		  }, 'id') as number[];
 
