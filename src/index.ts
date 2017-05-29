@@ -431,11 +431,12 @@ async function main() {
 	}
     }));
 
-    const privateActionsOverviewRouter = express.Router();
+    const privateUserActionsOverviewRouter = express.Router();
 
-    privateActionsOverviewRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
+    privateUserActionsOverviewRouter.use(newAuthInfoMiddleware(AuthInfoLevel.SessionIdAndAuth0AccessToken));
+    privateUserActionsOverviewRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
 
-    privateActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
+    privateUserActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	try {
 	    const userActionsOverview = await repository.getUserActionsOverview(req.session as Session);
 
@@ -465,7 +466,7 @@ async function main() {
 
     app.use('/public/causes', publicCausesRouter);
     app.use('/private/causes', privateCausesRouter);
-    app.use('/private/actions-overview', privateActionsOverviewRouter);
+    app.use('/private/user-actions-overview', privateUserActionsOverviewRouter);
 
     app.listen(config.PORT, config.ADDRESS, () => {
 	console.log(`Started core service on ${config.ADDRESS}:${config.PORT}`);
