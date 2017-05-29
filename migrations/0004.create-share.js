@@ -6,7 +6,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         -- Foreign key
         cause_id Int NOT NULL REFERENCES core.cause(id),
         -- Foreign key to external systems
-        session_id Int NULL,
+        session_id Uuid NULL,
         user_id Int NULL,
         facebook_post_id VarChar(128) NOT NULL,
         -- Denormalized data

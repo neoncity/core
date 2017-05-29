@@ -392,7 +392,7 @@ export class Repository {
     async createDonation(authInfo: AuthInfo, session: Session, causeId: number, createDonationRequest: CreateDonationRequest, requestTime: Date): Promise<DonationForSession> {
 	let dbCause: any|null = null;
 	let dbId: number = -1;
-	
+
 	await this._conn.transaction(async (trx) => {
 	    const dbCauses = await trx
 		  .from('core.cause')
@@ -412,7 +412,7 @@ export class Repository {
 		      'amount': this._currencyAmountMarshaller.pack(createDonationRequest.amount),
 		      'cause_id': causeId,
 		      'session_id': session.hasUser() ? null : authInfo.sessionId,
-		      'user_id': session.hasUser ? (session.user as User).id : null,
+		      'user_id': session.hasUser() ? (session.user as User).id : null,
 		      'time_created': requestTime
 		  });
 
