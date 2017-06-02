@@ -59,7 +59,7 @@ async function main() {
     const repository = new Repository(conn);
 
     app.use(newRequestTimeMiddleware());
-    app.use(newCorsMiddleware(config.CLIENTS));
+    app.use(newCorsMiddleware(config.CLIENTS, ['POST', 'GET', 'PUT', 'DELETE'], []));
     app.use(bodyParser.json());
 
     const publicCausesRouter = express.Router();
