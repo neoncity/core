@@ -69,9 +69,9 @@ export class CauseAlreadyExistsError extends RepositoryError {
 
 
 export class Repository {
-    private static readonly MAX_NUMBER_OF_CAUSES: 20;
-    private static readonly MAX_NUMBER_OF_DONATIONS: 100;
-    private static readonly MAX_NUMBER_OF_SHARES: 100;
+    private static readonly MAX_NUMBER_OF_CAUSES: number = 20;
+    private static readonly MAX_NUMBER_OF_DONATIONS: number = 100;
+    private static readonly MAX_NUMBER_OF_SHARES: number = 100;
     
     private static readonly _causePublicFields = [
 	'core.cause.id as cause_id',
