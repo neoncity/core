@@ -10,6 +10,7 @@ import {
     AuthInfoLevel,
     newAuthInfoMiddleware,
     newCorsMiddleware,
+    newJsonContentMiddleware,
     newRequestTimeMiddleware,
     newSessionMiddleware,
     SessionLevel,
@@ -61,6 +62,7 @@ async function main() {
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS, ['POST', 'GET', 'PUT', 'DELETE'], []));
     app.use(bodyParser.json());
+    app.use(newJsonContentMiddleware());
 
     const publicCausesRouter = express.Router();
 
