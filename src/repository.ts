@@ -69,6 +69,10 @@ export class CauseAlreadyExistsError extends RepositoryError {
 
 
 export class Repository {
+    private static readonly MAX_NUMBER_OF_CAUSES: 20;
+    private static readonly MAX_NUMBER_OF_DONATIONS: 100;
+    private static readonly MAX_NUMBER_OF_SHARES: 100;
+    
     private static readonly _causePublicFields = [
 	'core.cause.id as cause_id',
 	'core.cause.state as cause_state',
@@ -129,7 +133,8 @@ export class Repository {
 	const dbCauses = await this._conn('core.cause')
 	      .select(Repository._causePublicFields)
 	      .where({state: CauseState.Active})
-	      .orderBy('time_created', 'desc') as any[];
+	      .orderBy('time_created', 'desc')
+              .limit(Repository.MAX_NUMBER_OF_CAUSES) as any[];
 
 	return dbCauses.map((dbC: any) => {
 	    const cause = new PublicCause();
@@ -402,7 +407,8 @@ export class Repository {
 	    const dbCauses = await trx
 		  .from('core.cause')
 		  .select(Repository._causePublicFields)
-		  .where({id: causeId, state: CauseState.Active});
+		  .where({id: causeId, state: CauseState.Active})
+                  .limit(1);
 
 	    if (dbCauses.length == 0) {
 		throw new CauseNotFoundError('Cause does not exist');
@@ -464,7 +470,8 @@ export class Repository {
 	    const dbCauses = await trx
 		  .from('core.cause')
 		  .select(Repository._causePublicFields)
-		  .where({id: causeId, state: CauseState.Active});
+		  .where({id: causeId, state: CauseState.Active})
+                  .limit(1);
 
 	    if (dbCauses.length == 0) {
 		throw new CauseNotFoundError('Cause does not exist');
@@ -573,12 +580,16 @@ export class Repository {
 	const dbDonations = await this._conn('core.donation')
 	      .join('core.cause', 'core.donation.cause_id', '=', 'core.cause.id')
 	      .where({'core.donation.user_id': (session.user as User).id})
-	      .select(Repository._donationFields.concat(Repository._causePublicFields)) as any[];
+	      .select(Repository._donationFields.concat(Repository._causePublicFields))
+              .orderBy('time_created', 'desc')
+              .limit(Repository.MAX_NUMBER_OF_DONATIONS) as any[];
 
 	const dbShares = await this._conn('core.share')
 	      .join('core.cause', 'core.share.cause_id', '=', 'core.cause.id')
 	      .where({'core.share.user_id': (session.user as User).id})
-	      .select(Repository._shareFields.concat(Repository._causePublicFields)) as any[];
+	      .select(Repository._shareFields.concat(Repository._causePublicFields))
+              .orderBy('time_created', 'desc')
+              .limit(Repository.MAX_NUMBER_OF_SHARES) as any[];
 
 	// Return value.
 	const donations = dbDonations.map((dbD) => {
