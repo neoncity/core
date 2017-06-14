@@ -10,6 +10,7 @@ import {
     AuthInfoLevel,
     newAuthInfoMiddleware,
     newCheckOriginMiddleware,
+    newCheckXsrfTokenMiddleware,
     newCorsMiddleware,
     newJsonContentMiddleware,
     newRequestTimeMiddleware,
@@ -128,7 +129,11 @@ async function main() {
 	}
     }));
 
-    publicCausesRouter.post('/:causeId/donations', [newAuthInfoMiddleware(AuthInfoLevel.SessionId), newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient)], wrap(async (req: CoreRequest, res: express.Response) => {
+    publicCausesRouter.post('/:causeId/donations', [
+        newAuthInfoMiddleware(AuthInfoLevel.SessionId),
+        newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient),
+        newCheckXsrfTokenMiddleware()
+    ], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -180,7 +185,11 @@ async function main() {
 	}
     }));
 
-    publicCausesRouter.post('/:causeId/shares', [newAuthInfoMiddleware(AuthInfoLevel.SessionId), newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient)], wrap(async (req: CoreRequest, res: express.Response) => {
+    publicCausesRouter.post('/:causeId/shares', [
+        newAuthInfoMiddleware(AuthInfoLevel.SessionId),
+        newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient),
+        newCheckXsrfTokenMiddleware()
+    ], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -237,7 +246,7 @@ async function main() {
     privateCausesRouter.use(newAuthInfoMiddleware(AuthInfoLevel.SessionIdAndAuth0AccessToken));
     privateCausesRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
 
-    privateCausesRouter.post('/', wrap(async (req: CoreRequest, res: express.Response) => {
+    privateCausesRouter.post('/', newCheckXsrfTokenMiddleware(), wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse creation data.
 	let createCauseRequest: CreateCauseRequest|null = null;
 	try {
@@ -356,7 +365,7 @@ async function main() {
 	}
     }));
 
-    privateCausesRouter.put('/', wrap(async (req: CoreRequest, res: express.Response) => {
+    privateCausesRouter.put('/', newCheckXsrfTokenMiddleware(), wrap(async (req: CoreRequest, res: express.Response) => {
 	let updateCauseRequest: UpdateCauseRequest|null = null;
 	try {
 	    updateCauseRequest = updateCauseRequestMarshaller.extract(req.body) as UpdateCauseRequest;
@@ -417,7 +426,7 @@ async function main() {
 	}
     }));
 
-    privateCausesRouter.delete('/', wrap(async (req: CoreRequest, res: express.Response) => {
+    privateCausesRouter.delete('/', newCheckXsrfTokenMiddleware(), wrap(async (req: CoreRequest, res: express.Response) => {
 	try {
 	    await repository.deleteCause(req.session as Session, req.requestTime);
 
