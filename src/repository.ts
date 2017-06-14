@@ -176,9 +176,6 @@ export class Repository {
     }
 
     async createCause(session: Session, createCauseRequest: CreateCauseRequest, requestTime: Date): Promise<PrivateCause> {
-	// Check deadline is appropriate.
-	// TODO: do it
-
 	// Create slug.
 	const slug = slugify(createCauseRequest.title);
 
@@ -189,7 +186,12 @@ export class Repository {
 	}
 
 	const slugs = {slugs: [{slug: slug, timeCreated: requestTime.getTime()}]};
-	
+
+        // Check that the deadline is not in the past.
+        if (createCauseRequest.deadline.getTime() < Date.now()) {
+            throw new InvalidCausePropertiesError('Deadline is in the past');
+        }
+
 	let dbId: number = -1;
 	
 	try {
@@ -282,8 +284,6 @@ export class Repository {
     }
 
     async updateCause(session: Session, updateCauseRequest: UpdateCauseRequest, requestTime: Date): Promise<PrivateCause> {
-	// TODO: verify deadlline is OK.
-
 	// TODO: improve typing here.
 
 	const updateDict: any = {
@@ -303,6 +303,11 @@ export class Repository {
         }
 
         if (updateCauseRequest.hasOwnProperty('deadline')) {
+            // Check that the deadline is not in the past.
+            if ((updateCauseRequest.deadline as Date).getTime() < Date.now()) {
+                throw new InvalidCausePropertiesError('Deadline is in the past');
+            }
+            
             updateDict['deadline'] = updateCauseRequest.deadline;
         }
 

@@ -378,6 +378,13 @@ async function main() {
 	    res.status(HttpStatus.OK);
             res.end();
 	} catch (e) {
+            if (e.name == 'InvalidCausePropertiesError') {
+                console.log(e.message);
+                res.status(HttpStatus.BAD_REQUEST);
+                res.end();
+                return;
+            }
+            
 	    if (e.name == 'CauseNotFoundError') {
 		console.log(e.message);
 		res.status(HttpStatus.NOT_FOUND);
@@ -407,7 +414,6 @@ async function main() {
     }));
 
     privateCausesRouter.delete('/', wrap(async (req: CoreRequest, res: express.Response) => {
-	// Mark the cause of this user as deleted.
 	try {
 	    await repository.deleteCause(req.session as Session, req.requestTime);
 
