@@ -69,7 +69,10 @@ async function main() {
 
     const publicCausesRouter = express.Router();
 
-    publicCausesRouter.get('/', [newAuthInfoMiddleware(AuthInfoLevel.None), newSessionMiddleware(SessionLevel.None, config.ENV, identityClient)], wrap(async (_: CoreRequest, res: express.Response) => {
+    publicCausesRouter.get('/', [
+        newAuthInfoMiddleware(AuthInfoLevel.None),
+        newSessionMiddleware(SessionLevel.None,config.ENV, config.ORIGIN, identityClient)
+    ], wrap(async (_: CoreRequest, res: express.Response) => {
 	try {
 	    const publicCauses = await repository.getPublicCauses();
 
@@ -91,7 +94,10 @@ async function main() {
 	}
     }));
 
-    publicCausesRouter.get('/:causeId', [newAuthInfoMiddleware(AuthInfoLevel.None), newSessionMiddleware(SessionLevel.None, config.ENV, identityClient)], wrap(async (req: CoreRequest, res: express.Response) => {
+    publicCausesRouter.get('/:causeId', [
+        newAuthInfoMiddleware(AuthInfoLevel.None),
+        newSessionMiddleware(SessionLevel.None, config.ENV, config.ORIGIN, identityClient)
+    ], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
 	const causeId = parseInt(req.params['causeId']);
 
@@ -131,7 +137,7 @@ async function main() {
 
     publicCausesRouter.post('/:causeId/donations', [
         newAuthInfoMiddleware(AuthInfoLevel.SessionId),
-        newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient),
+        newSessionMiddleware(SessionLevel.Session, config.ENV, config.ORIGIN, identityClient),
         newCheckXsrfTokenMiddleware()
     ], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
@@ -187,7 +193,7 @@ async function main() {
 
     publicCausesRouter.post('/:causeId/shares', [
         newAuthInfoMiddleware(AuthInfoLevel.SessionId),
-        newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient),
+        newSessionMiddleware(SessionLevel.Session, config.ENV, config.ORIGIN, identityClient),
         newCheckXsrfTokenMiddleware()
     ], wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse request data.
@@ -244,7 +250,7 @@ async function main() {
     const privateCausesRouter = express.Router();
 
     privateCausesRouter.use(newAuthInfoMiddleware(AuthInfoLevel.SessionIdAndAuth0AccessToken));
-    privateCausesRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
+    privateCausesRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, config.ORIGIN, identityClient));
 
     privateCausesRouter.post('/', newCheckXsrfTokenMiddleware(), wrap(async (req: CoreRequest, res: express.Response) => {
 	// Parse creation data.
@@ -453,7 +459,7 @@ async function main() {
     const privateUserActionsOverviewRouter = express.Router();
 
     privateUserActionsOverviewRouter.use(newAuthInfoMiddleware(AuthInfoLevel.SessionIdAndAuth0AccessToken));
-    privateUserActionsOverviewRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
+    privateUserActionsOverviewRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, config.ORIGIN, identityClient));
 
     privateUserActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
 	try {

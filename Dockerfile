@@ -43,6 +43,7 @@ ENV PORT 10000
 ENV DATABASE_URL postgresql://neoncity:neoncity@neoncity-postgres:5432/neoncity
 ENV DATABASE_MIGRATIONS_DIR /neoncity/migrations
 ENV DATABASE_MIGRATIONS_TABLE migrations_core
+ENV ORIGIN http://localhost:10002
 ENV CLIENTS http://localhost:10003
 ENV IDENTITY_SERVICE_HOST neoncity-identity:10000
 ENV SECRETS_PATH /neoncity/var/secrets.json

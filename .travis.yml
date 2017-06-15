@@ -13,6 +13,7 @@ env:
   - DATABASE_MIGRATIONS_TABLE=null
   - PGSSLMODE=require
   - SECRET_PATH=null
+  - ORIGIN=null
   - CLIENTS=null
   - IDENTITY_SERVICE_HOST=null  
   - GEMFURY_USER=neoncity
