@@ -18,6 +18,7 @@ import {
     SessionLevel,
     startupMigration } from '@neoncity/common-server-js'
 import {
+    AllCauseSummariesResponse,
     CauseAnalyticsResponse,
     CreateCauseRequest,
     CreateDonationRequest,
@@ -50,7 +51,8 @@ async function main() {
     const createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
     const updateCauseRequestMarshaller = new (MarshalFrom(UpdateCauseRequest))();
     const createDonationRequestMarshaller = new (MarshalFrom(CreateDonationRequest))();
-    const createShareRequestMarshaller = new (MarshalFrom(CreateShareRequest))();    
+    const createShareRequestMarshaller = new (MarshalFrom(CreateShareRequest))();
+    const allCauseSummariesResponseMarshaller = new (MarshalFrom(AllCauseSummariesResponse))();
     const publicCausesResponseMarshaller = new (MarshalFrom(PublicCausesResponse))();
     const publicCauseResponseMarshaller = new (MarshalFrom(PublicCauseResponse))();
     const privateCauseResponseMarshaller = new PrivateCauseResponseMarshaller();
@@ -68,6 +70,31 @@ async function main() {
     app.use(newJsonContentMiddleware());
 
     const publicCausesRouter = express.Router();
+
+    publicCausesRouter.get('/summaries', [
+        newAuthInfoMiddleware(AuthInfoLevel.None),
+        newSessionMiddleware(SessionLevel.None,config.ENV, config.ORIGIN, identityClient)
+    ], wrap(async (_: CoreRequest, res: express.Response) => {
+	try {
+	    const allCauseSummaries = await repository.getAllCauseSummaries();
+
+	    const allCauseSummariesResponse = new AllCauseSummariesResponse();
+	    allCauseSummariesResponse.causeSummaries = allCauseSummaries;
+	    
+            res.write(JSON.stringify(allCauseSummariesResponseMarshaller.pack(allCauseSummariesResponse)))
+	    res.status(HttpStatus.OK);
+            res.end();
+	} catch (e) {
+	    console.log(`DB read error - ${e.toString()}`);
+	    if (isLocal(config.ENV)) {
+                console.log(e);
+	    }
+	    
+	    res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+	    res.end();
+	    return;
+	}
+    }));    
 
     publicCausesRouter.get('/', [
         newAuthInfoMiddleware(AuthInfoLevel.None),

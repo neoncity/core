@@ -5,9 +5,10 @@ import { slugify } from '@neoncity/common-js'
 import {
     BankInfo,
     BankInfoMarshaller,
-    CauseEventType,
     CauseAnalytics,
+    CauseEventType,
     CauseState,
+    CauseSummary,
     CreateCauseRequest,
     CreateDonationRequest,
     CreateShareRequest,
@@ -72,6 +73,12 @@ export class Repository {
     private static readonly MAX_NUMBER_OF_CAUSES: number = 20;
     private static readonly MAX_NUMBER_OF_DONATIONS: number = 100;
     private static readonly MAX_NUMBER_OF_SHARES: number = 100;
+
+    private static readonly _causeSummaryFields = [
+	'core.cause.id as cause_id',
+	'core.cause.slugs as cause_slugs',
+	'core.cause.time_last_updated as cause_time_last_updated'
+    ];
     
     private static readonly _causePublicFields = [
 	'core.cause.id as cause_id',
@@ -127,6 +134,22 @@ export class Repository {
 	this._currencyAmountMarshaller = new (MarshalFrom(CurrencyAmount))();
 	this._bankInfoMarshaller = new BankInfoMarshaller();
 	this._slugMarshaller = new SlugMarshaller();
+    }
+
+    async getAllCauseSummaries(): Promise<CauseSummary[]> {
+	const dbCauseSummaries = await this._conn('core.cause')
+	      .select(Repository._causeSummaryFields)
+	      .where({state: CauseState.Active})
+	      .orderBy('time_created', 'desc');
+
+	return dbCauseSummaries.map((dbCS: any) => {
+	    const causeSummary = new CauseSummary();
+	    causeSummary.id = dbCS['cause_id'];
+	    causeSummary.slug = Repository._latestSlug(dbCS['cause_slugs'].slugs);
+	    causeSummary.timeLastUpdated = new Date(dbCS['cause_time_last_updated']);
+
+	    return causeSummary;
+	});
     }
 
     async getPublicCauses(): Promise<PublicCause[]> {
