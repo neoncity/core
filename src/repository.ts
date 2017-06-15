@@ -581,14 +581,14 @@ export class Repository {
 	      .join('core.cause', 'core.donation.cause_id', '=', 'core.cause.id')
 	      .where({'core.donation.user_id': (session.user as User).id})
 	      .select(Repository._donationFields.concat(Repository._causePublicFields))
-              .orderBy('time_created', 'desc')
+              .orderBy('donation_time_created', 'desc')
               .limit(Repository.MAX_NUMBER_OF_DONATIONS) as any[];
 
 	const dbShares = await this._conn('core.share')
 	      .join('core.cause', 'core.share.cause_id', '=', 'core.cause.id')
 	      .where({'core.share.user_id': (session.user as User).id})
 	      .select(Repository._shareFields.concat(Repository._causePublicFields))
-              .orderBy('time_created', 'desc')
+              .orderBy('share_time_created', 'desc')
               .limit(Repository.MAX_NUMBER_OF_SHARES) as any[];
 
 	// Return value.
