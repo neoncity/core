@@ -64,6 +64,7 @@ async function main() {
 
     const repository = new Repository(conn);
 
+    app.disable('x-powered-by');
     app.use(newRequestTimeMiddleware());
     app.use(newCorsMiddleware(config.CLIENTS, ['POST', 'GET', 'PUT', 'DELETE'], []));
     app.use(newCheckOriginMiddleware(config.CLIENTS));
