@@ -1,5 +1,6 @@
 import { wrap } from 'async-middleware'
 import * as bodyParser from 'body-parser'
+import * as compression from 'compression'
 import * as express from 'express'
 import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
@@ -68,6 +69,10 @@ async function main() {
     app.use(newCheckOriginMiddleware(config.CLIENTS));
     app.use(bodyParser.json());
     app.use(newJsonContentMiddleware());
+
+    if (!isLocal(config.ENV)) {
+        app.use(compression());
+    }
 
     const publicCausesRouter = express.Router();
 
