@@ -28,6 +28,8 @@ import {
     Session,
     User } from '@neoncity/identity-sdk-js'
 
+const moment = require('moment')
+
 
 export class RepositoryError extends Error {
     constructor(message: string) {
@@ -549,7 +551,7 @@ export class Repository {
 
     async getCauseAnalytics(session: Session): Promise<CauseAnalytics> {
 	const dbCauses = await this._conn('core.cause')
-	      .select(['id', 'goal'])
+	      .select(['id', 'goal', 'deadline'])
 	      .where({user_id: (session.user as User).id, state: CauseState.Active})
 	      .limit(1);
 
@@ -586,7 +588,7 @@ export class Repository {
 	const dbSharesAnalytics = rawSharesAnalytics.rows[0];
 
 	const causeAnalytics = new CauseAnalytics();
-	causeAnalytics.daysLeft = 0;
+	causeAnalytics.daysLeft = Math.max(0, moment(dbCause['deadline']).diff(moment(), 'days'));
 	causeAnalytics.donorsCount = parseInt(dbDonationsAnalytics['donors_count']);
 	causeAnalytics.donationsCount = parseInt(dbDonationsAnalytics['donations_count']);
 	causeAnalytics.amountDonated = new CurrencyAmount();
