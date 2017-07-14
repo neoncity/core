@@ -588,7 +588,7 @@ export class Repository {
 	const dbSharesAnalytics = rawSharesAnalytics.rows[0];
 
 	const causeAnalytics = new CauseAnalytics();
-	causeAnalytics.daysLeft = Math.max(0, moment(dbCause['deadline']).diff(moment(), 'days'));
+	causeAnalytics.daysLeft = Math.max(0, moment.utc(dbCause['deadline']).diff(moment.utc(), 'days'));
 	causeAnalytics.donorsCount = parseInt(dbDonationsAnalytics['donors_count']);
 	causeAnalytics.donationsCount = parseInt(dbDonationsAnalytics['donations_count']);
 	causeAnalytics.amountDonated = new CurrencyAmount();
