@@ -602,22 +602,37 @@ export class Repository {
     }
 
     async getUserActionsOverview(session: Session): Promise<UserActionsOverview> {
-	const dbDonations = await this._conn('core.donation')
+        const user = session.user as User;
+        
+        const dbDonationsCount = await this._conn('core.donation')
+              .where({'core.donation.user_id': user.id})
+              .count();
+        const dbSharesCount = await this._conn('core.share')
+              .where({'core.share.user_id': user.id})
+              .count();
+        const dbRawAmountsDonatedByCurrency = await this._conn.raw(`
+                select
+                    cast(amount->'currency' as text) as currency,
+                    sum(cast(amount->>'amount' as int)) as amount
+                from core.donation
+                where user_id = ?
+                group by cast(amount->'currency' as text);`,
+              [user.id]);
+	const dbLatestDonations = await this._conn('core.donation')
 	      .join('core.cause', 'core.donation.cause_id', '=', 'core.cause.id')
-	      .where({'core.donation.user_id': (session.user as User).id})
+	      .where({'core.donation.user_id': user.id})
 	      .select(Repository._donationFields.concat(Repository._causePublicFields))
               .orderBy('donation_time_created', 'desc')
               .limit(Repository.MAX_NUMBER_OF_DONATIONS) as any[];
-
-	const dbShares = await this._conn('core.share')
+	const dbLatestShares = await this._conn('core.share')
 	      .join('core.cause', 'core.share.cause_id', '=', 'core.cause.id')
-	      .where({'core.share.user_id': (session.user as User).id})
+	      .where({'core.share.user_id': user.id})
 	      .select(Repository._shareFields.concat(Repository._causePublicFields))
               .orderBy('share_time_created', 'desc')
               .limit(Repository.MAX_NUMBER_OF_SHARES) as any[];
 
 	// Return value.
-	const donations = dbDonations.map((dbD) => {
+	const latestDonations = dbLatestDonations.map((dbD) => {
 	    const cause = new PublicCause();
 	    cause.id = dbD['cause_id'];
 	    cause.state = dbD['cause_state'];
@@ -639,7 +654,7 @@ export class Repository {
 	    return donationForSession;
 	});
 
-	const shares = dbShares.map((dbD) => {
+	const latestShares = dbLatestShares.map((dbD) => {
 	    const cause = new PublicCause();
 	    cause.id = dbD['cause_id'];
 	    cause.state = dbD['cause_state'];
@@ -662,8 +677,19 @@ export class Repository {
 	});	
 
 	const userActionsOverview = new UserActionsOverview();
-	userActionsOverview.donations = donations;
-	userActionsOverview.shares = shares;
+        userActionsOverview.donationsCount = dbDonationsCount[0].count;
+        userActionsOverview.amountsDonatedByCurrency =
+            dbRawAmountsDonatedByCurrency.rows.map((r: any) => {
+                const rawAmount = {
+                    amount: JSON.parse(r['amount']),
+                    currency: JSON.parse(r['currency'])
+                };
+                
+                return this._currencyAmountMarshaller.extract(rawAmount)
+            });
+        userActionsOverview.sharesCount = dbSharesCount[0].count;
+	userActionsOverview.latestDonations = latestDonations;
+	userActionsOverview.latestShares = latestShares;
 
 	return userActionsOverview;
     }
