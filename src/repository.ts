@@ -677,7 +677,7 @@ export class Repository {
 	});	
 
 	const userActionsOverview = new UserActionsOverview();
-        userActionsOverview.donationsCount = dbDonationsCount[0].count;
+        userActionsOverview.donationsCount = (Number as any).parseInt(dbDonationsCount[0].count);
         userActionsOverview.amountsDonatedByCurrency =
             dbRawAmountsDonatedByCurrency.rows.map((r: any) => {
                 const rawAmount = {
@@ -687,7 +687,7 @@ export class Repository {
                 
                 return this._currencyAmountMarshaller.extract(rawAmount)
             });
-        userActionsOverview.sharesCount = dbSharesCount[0].count;
+        userActionsOverview.sharesCount = (Number as any).parseInt(dbSharesCount[0].count);
 	userActionsOverview.latestDonations = latestDonations;
 	userActionsOverview.latestShares = latestShares;
 
