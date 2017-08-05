@@ -6,9 +6,10 @@ import * as HttpStatus from 'http-status-codes'
 import * as knex from 'knex'
 import { MarshalFrom } from 'raynor'
 
-import { isLocal } from '@neoncity/common-js/env'
+import { isLocal, WebFetcher } from '@neoncity/common-js'
 import {
     AuthInfoLevel,
+    InternalWebFetcher,
     newAuthInfoMiddleware,
     newCheckOriginMiddleware,
     newCheckXsrfTokenMiddleware,
@@ -43,7 +44,8 @@ async function main() {
     startupMigration();
 
     const app = express();
-    const identityClient: IdentityClient = newIdentityClient(config.ENV, config.IDENTITY_SERVICE_HOST);
+    const internalWebFetcher: WebFetcher = new InternalWebFetcher();
+    const identityClient: IdentityClient = newIdentityClient(config.ENV, config.IDENTITY_SERVICE_HOST, internalWebFetcher);
     const conn = knex({
         client: 'pg',
     	connection: config.DATABASE_URL
