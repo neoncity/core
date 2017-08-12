@@ -94,9 +94,7 @@ async function main() {
             res.end();
         } catch (e) {
             console.log(`DB read error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -119,9 +117,7 @@ async function main() {
             res.end();
         } catch (e) {
             console.log(`DB read error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -161,9 +157,7 @@ async function main() {
             }
 
             console.log(`DB retrieval error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -190,9 +184,7 @@ async function main() {
             createDonationRequest = createDonationRequestMarshaller.extract(req.body);
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -217,9 +209,7 @@ async function main() {
             }
 
             console.log(`DB insertion error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -246,9 +236,7 @@ async function main() {
             createShareRequest = createShareRequestMarshaller.extract(req.body);
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -273,9 +261,7 @@ async function main() {
             }
 
             console.log(`DB insertion error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -294,9 +280,7 @@ async function main() {
             createCauseRequest = createCauseRequestMarshaller.extract(req.body) as CreateCauseRequest;
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -329,9 +313,7 @@ async function main() {
             }
 
             console.log(`DB insertion error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -369,9 +351,7 @@ async function main() {
             }
 
             console.log(`DB retrieval error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -397,9 +377,7 @@ async function main() {
             }
 
             console.log(`DB read error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -412,9 +390,7 @@ async function main() {
             updateCauseRequest = updateCauseRequestMarshaller.extract(req.body) as UpdateCauseRequest;
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -458,9 +434,7 @@ async function main() {
             }
 
             console.log(`DB retrieval error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -482,9 +456,7 @@ async function main() {
             }
 
             console.log(`DB update error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -515,9 +487,7 @@ async function main() {
             }
 
             console.log(`DB read error - ${e.toString()}`);
-            if (isLocal(config.ENV)) {
-                console.log(e);
-            }
+            console.log(e);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
