@@ -34,7 +34,12 @@ import {
     UpdateCauseRequest,
     UserActionsOverviewResponse
 } from '@neoncity/core-sdk-js'
-import { AuthInfo, IdentityClient, newIdentityClient, Session } from '@neoncity/identity-sdk-js'
+import {
+    AuthInfo,
+    IdentityClient,
+    newIdentityClient,
+    Session
+} from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
 import { CoreRequest } from './core-request'
@@ -81,7 +86,7 @@ async function main() {
 
     publicCausesRouter.get('/summaries', [
         newAuthInfoMiddleware(AuthInfoLevel.None),
-        newSessionMiddleware(SessionLevel.None, config.ENV, identityClient)
+        newSessionMiddleware(SessionLevel.None, identityClient)
     ], wrap(async (_: CoreRequest, res: express.Response) => {
         try {
             const allCauseSummaries = await repository.getAllCauseSummaries();
@@ -104,7 +109,7 @@ async function main() {
 
     publicCausesRouter.get('/', [
         newAuthInfoMiddleware(AuthInfoLevel.None),
-        newSessionMiddleware(SessionLevel.None, config.ENV, identityClient)
+        newSessionMiddleware(SessionLevel.None, identityClient)
     ], wrap(async (_: CoreRequest, res: express.Response) => {
         try {
             const publicCauses = await repository.getPublicCauses();
@@ -127,7 +132,7 @@ async function main() {
 
     publicCausesRouter.get('/:causeId', [
         newAuthInfoMiddleware(AuthInfoLevel.None),
-        newSessionMiddleware(SessionLevel.None, config.ENV, identityClient)
+        newSessionMiddleware(SessionLevel.None, identityClient)
     ], wrap(async (req: CoreRequest, res: express.Response) => {
         // Parse request data.
         const causeId = parseInt(req.params['causeId']);
@@ -166,7 +171,7 @@ async function main() {
 
     publicCausesRouter.post('/:causeId/donations', [
         newAuthInfoMiddleware(AuthInfoLevel.SessionId),
-        newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient),
+        newSessionMiddleware(SessionLevel.Session, identityClient),
         newCheckXsrfTokenMiddleware()
     ], wrap(async (req: CoreRequest, res: express.Response) => {
         // Parse request data.
@@ -218,7 +223,7 @@ async function main() {
 
     publicCausesRouter.post('/:causeId/shares', [
         newAuthInfoMiddleware(AuthInfoLevel.SessionId),
-        newSessionMiddleware(SessionLevel.Session, config.ENV, identityClient),
+        newSessionMiddleware(SessionLevel.Session, identityClient),
         newCheckXsrfTokenMiddleware()
     ], wrap(async (req: CoreRequest, res: express.Response) => {
         // Parse request data.
@@ -271,7 +276,7 @@ async function main() {
     const privateCausesRouter = express.Router();
 
     privateCausesRouter.use(newAuthInfoMiddleware(AuthInfoLevel.SessionIdAndAuth0AccessToken));
-    privateCausesRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
+    privateCausesRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, identityClient));
 
     privateCausesRouter.post('/', newCheckXsrfTokenMiddleware(), wrap(async (req: CoreRequest, res: express.Response) => {
         // Parse creation data.
@@ -466,7 +471,7 @@ async function main() {
     const privateUserActionsOverviewRouter = express.Router();
 
     privateUserActionsOverviewRouter.use(newAuthInfoMiddleware(AuthInfoLevel.SessionIdAndAuth0AccessToken));
-    privateUserActionsOverviewRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, config.ENV, identityClient));
+    privateUserActionsOverviewRouter.use(newSessionMiddleware(SessionLevel.SessionAndUser, identityClient));
 
     privateUserActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
         try {

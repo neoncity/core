@@ -28,9 +28,9 @@
   },
   "dependencies": {
     "@neoncity/common-js": "~1",
-    "@neoncity/common-server-js": "~3",
-    "@neoncity/core-sdk-js": "~7",
-    "@neoncity/identity-sdk-js": "~5",
+    "@neoncity/common-server-js": "~4",
+    "@neoncity/core-sdk-js": "~8",
+    "@neoncity/identity-sdk-js": "~6",
     "async-middleware": "=1.0.2",
     "body-parser": "=1.17.1",
     "compression": "=1.6.2",
