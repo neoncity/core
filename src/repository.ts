@@ -26,6 +26,8 @@ import {
 } from '@neoncity/core-sdk-js'
 import {
     AuthInfo,
+    IdentityClient,
+    PublicUser,
     Session,
     User
 } from '@neoncity/identity-sdk-js'
@@ -71,6 +73,9 @@ export class CauseAlreadyExistsError extends RepositoryError {
         this.name = 'CauseAlreadyExistsError';
     }
 }
+
+
+type UserIdToUserMap = { [k: number]: PublicUser };
 
 
 export class Repository {
@@ -119,6 +124,7 @@ export class Repository {
     ];
 
     private readonly _conn: knex;
+    private readonly _identityClient: IdentityClient;
     private readonly _createCauseRequestMarshaller: Marshaller<CreateCauseRequest>;
     private readonly _updateCauseRequestMarshaller: Marshaller<UpdateCauseRequest>;
     private readonly _createDonationRequestMarshaller: Marshaller<CreateDonationRequest>;
@@ -128,8 +134,9 @@ export class Repository {
     private readonly _bankInfoMarshaller: BankInfoMarshaller;
     private readonly _slugMarshaller: SlugMarshaller;
 
-    constructor(conn: knex) {
+    constructor(conn: knex, identityClient: IdentityClient) {
         this._conn = conn;
+        this._identityClient = identityClient;
         this._createCauseRequestMarshaller = new (MarshalFrom(CreateCauseRequest))();
         this._updateCauseRequestMarshaller = new (MarshalFrom(UpdateCauseRequest))();
         this._createDonationRequestMarshaller = new (MarshalFrom(CreateDonationRequest))();
@@ -156,12 +163,17 @@ export class Repository {
         });
     }
 
-    async getPublicCauses(): Promise<PublicCause[]> {
+    async getPublicCauses(authInfo: AuthInfo): Promise<PublicCause[]> {
         const dbCauses = await this._conn('core.cause')
             .select(Repository._causePublicFields)
             .where({ state: CauseState.Active })
             .orderBy('time_created', 'desc')
             .limit(Repository.MAX_NUMBER_OF_CAUSES) as any[];
+
+        const users = await this._identityClient.withContext(authInfo).getUsersInfo(dbCauses.map(dbC => dbC['cause_user_id']));
+        const usersById: UserIdToUserMap = {};
+        for (let user of users)
+            usersById[user.id] = user;
 
         return dbCauses.map((dbC: any) => {
             const cause = new PublicCause();
@@ -175,12 +187,13 @@ export class Repository {
             cause.goal = this._currencyAmountMarshaller.extract(dbC['cause_goal']);
             cause.timeCreated = new Date(dbC['cause_time_created']);
             cause.timeLastUpdated = new Date(dbC['cause_time_last_updated']);
+            cause.user = usersById[dbC['cause_user_id']];
 
             return cause;
         });
     }
 
-    async getPublicCause(causeId: number): Promise<PublicCause> {
+    async getPublicCause(authInfo: AuthInfo, causeId: number): Promise<PublicCause> {
         const dbCauses = await this._conn('core.cause')
             .select(Repository._causePublicFields)
             .where({ id: causeId, state: CauseState.Active })
@@ -191,6 +204,8 @@ export class Repository {
         }
 
         const dbCause = dbCauses[0];
+
+        const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
 
         const cause = new PublicCause();
         cause.id = dbCause['cause_id'];
@@ -203,6 +218,7 @@ export class Repository {
         cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
         cause.timeCreated = new Date(dbCause['cause_time_created']);
         cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+        cause.user = users[0];
 
         return cause;
     }

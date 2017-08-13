@@ -70,7 +70,7 @@ async function main() {
     const causeAnalyticsResponseMarshaller = new (MarshalFrom(CauseAnalyticsResponse))();
     const userActionsOverviewResponseMarshaller = new (MarshalFrom(UserActionsOverviewResponse))();
 
-    const repository = new Repository(conn);
+    const repository = new Repository(conn, identityClient);
 
     app.disable('x-powered-by');
     app.use(newRequestTimeMiddleware());
@@ -99,7 +99,7 @@ async function main() {
             res.end();
         } catch (e) {
             console.log(`DB read error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -108,11 +108,11 @@ async function main() {
     }));
 
     publicCausesRouter.get('/', [
-        newAuthInfoMiddleware(AuthInfoLevel.None),
-        newSessionMiddleware(SessionLevel.None, identityClient)
-    ], wrap(async (_: CoreRequest, res: express.Response) => {
+        newAuthInfoMiddleware(AuthInfoLevel.SessionId),
+        newSessionMiddleware(SessionLevel.Session, identityClient)
+    ], wrap(async (req: CoreRequest, res: express.Response) => {
         try {
-            const publicCauses = await repository.getPublicCauses();
+            const publicCauses = await repository.getPublicCauses(req.authInfo as AuthInfo);
 
             const publicCausesResponse = new PublicCausesResponse();
             publicCausesResponse.causes = publicCauses;
@@ -122,7 +122,7 @@ async function main() {
             res.end();
         } catch (e) {
             console.log(`DB read error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -131,8 +131,8 @@ async function main() {
     }));
 
     publicCausesRouter.get('/:causeId', [
-        newAuthInfoMiddleware(AuthInfoLevel.None),
-        newSessionMiddleware(SessionLevel.None, identityClient)
+        newAuthInfoMiddleware(AuthInfoLevel.SessionId),
+        newSessionMiddleware(SessionLevel.Session, identityClient)
     ], wrap(async (req: CoreRequest, res: express.Response) => {
         // Parse request data.
         const causeId = parseInt(req.params['causeId']);
@@ -145,7 +145,7 @@ async function main() {
         }
 
         try {
-            const publicCause = await repository.getPublicCause(causeId);
+            const publicCause = await repository.getPublicCause(req.authInfo as AuthInfo, causeId);
 
             const publicCauseResponse = new PublicCauseResponse();
             publicCauseResponse.cause = publicCause;
@@ -162,7 +162,7 @@ async function main() {
             }
 
             console.log(`DB retrieval error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -189,7 +189,7 @@ async function main() {
             createDonationRequest = createDonationRequestMarshaller.extract(req.body);
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -214,7 +214,7 @@ async function main() {
             }
 
             console.log(`DB insertion error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -241,7 +241,7 @@ async function main() {
             createShareRequest = createShareRequestMarshaller.extract(req.body);
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -266,7 +266,7 @@ async function main() {
             }
 
             console.log(`DB insertion error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -285,7 +285,7 @@ async function main() {
             createCauseRequest = createCauseRequestMarshaller.extract(req.body) as CreateCauseRequest;
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -318,7 +318,7 @@ async function main() {
             }
 
             console.log(`DB insertion error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -356,7 +356,7 @@ async function main() {
             }
 
             console.log(`DB retrieval error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -382,7 +382,7 @@ async function main() {
             }
 
             console.log(`DB read error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -395,7 +395,7 @@ async function main() {
             updateCauseRequest = updateCauseRequestMarshaller.extract(req.body) as UpdateCauseRequest;
         } catch (e) {
             console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
@@ -439,7 +439,7 @@ async function main() {
             }
 
             console.log(`DB retrieval error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -461,7 +461,7 @@ async function main() {
             }
 
             console.log(`DB update error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
@@ -492,7 +492,7 @@ async function main() {
             }
 
             console.log(`DB read error - ${e.toString()}`);
-            console.log(e);
+            console.log(e.stack);
 
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
