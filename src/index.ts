@@ -475,7 +475,7 @@ async function main() {
 
     privateUserActionsOverviewRouter.get('/', wrap(async (req: CoreRequest, res: express.Response) => {
         try {
-            const userActionsOverview = await repository.getUserActionsOverview(req.session as Session);
+            const userActionsOverview = await repository.getUserActionsOverview(req.authInfo as AuthInfo, req.session as Session);
 
             const userActionsOverviewResponse = new UserActionsOverviewResponse();
             userActionsOverviewResponse.userActionsOverview = userActionsOverview;

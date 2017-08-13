@@ -483,6 +483,8 @@ export class Repository {
                 });
         });
 
+        const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
+
         const cause = new PublicCause();
         cause.id = dbCause['cause_id'];
         cause.state = dbCause['cause_state'];
@@ -494,6 +496,7 @@ export class Repository {
         cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
         cause.timeCreated = new Date(dbCause['cause_time_created']);
         cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+        cause.user = users[0];
 
         const donationForSession = new DonationForSession();
         donationForSession.id = dbId as number;
@@ -546,6 +549,8 @@ export class Repository {
                 });
         });
 
+        const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
+
         const cause = new PublicCause();
         cause.id = dbCause['cause_id'];
         cause.state = dbCause['cause_state'];
@@ -557,6 +562,7 @@ export class Repository {
         cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
         cause.timeCreated = new Date(dbCause['cause_time_created']);
         cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+        cause.user = users[0];
 
         const shareForSession = new ShareForSession();
         shareForSession.id = dbId as number;
@@ -619,7 +625,7 @@ export class Repository {
         return causeAnalytics;
     }
 
-    async getUserActionsOverview(session: Session): Promise<UserActionsOverview> {
+    async getUserActionsOverview(authInfo: AuthInfo, session: Session): Promise<UserActionsOverview> {
         const user = session.user as User;
 
         const dbDonationsCount = await this._conn('core.donation')
@@ -649,6 +655,14 @@ export class Repository {
             .orderBy('share_time_created', 'desc')
             .limit(Repository.MAX_NUMBER_OF_SHARES) as any[];
 
+        const usersForDonations = await this._identityClient.withContext(authInfo).getUsersInfo(dbLatestDonations.map(dbC => dbC['cause_user_id']));
+        const usersForShares = await this._identityClient.withContext(authInfo).getUsersInfo(dbLatestShares.map(dbC => dbC['cause_user_id']));
+        const usersById: UserIdToUserMap = {};
+        for (let user of usersForDonations)
+            usersById[user.id] = user;
+        for (let user of usersForShares)
+            usersById[user.id] = user;
+
         // Return value.
         const latestDonations = dbLatestDonations.map((dbD) => {
             const cause = new PublicCause();
@@ -662,6 +676,7 @@ export class Repository {
             cause.pictureSet = this._pictureSetMarshaller.extract(dbD['cause_picture_set']);
             cause.deadline = dbD['cause_deadline'];
             cause.goal = this._currencyAmountMarshaller.extract(dbD['cause_goal']);
+            cause.user = usersById[dbD['cause_user_id']];
 
             const donationForSession = new DonationForSession();
             donationForSession.id = dbD['donation_id'];
@@ -672,24 +687,25 @@ export class Repository {
             return donationForSession;
         });
 
-        const latestShares = dbLatestShares.map((dbD) => {
+        const latestShares = dbLatestShares.map((dbS) => {
             const cause = new PublicCause();
-            cause.id = dbD['cause_id'];
-            cause.state = dbD['cause_state'];
-            cause.slug = Repository._latestSlug(dbD['cause_slugs'].slugs);
-            cause.title = dbD['cause_title'];
-            cause.description = dbD['cause_description'];
-            cause.pictureSet = this._pictureSetMarshaller.extract(dbD['cause_picture_set']);
-            cause.deadline = dbD['cause_deadline'];
-            cause.goal = this._currencyAmountMarshaller.extract(dbD['cause_goal']);
-            cause.timeCreated = new Date(dbD['cause_time_created']);
-            cause.timeLastUpdated = new Date(dbD['cause_time_last_updated']);
+            cause.id = dbS['cause_id'];
+            cause.state = dbS['cause_state'];
+            cause.slug = Repository._latestSlug(dbS['cause_slugs'].slugs);
+            cause.title = dbS['cause_title'];
+            cause.description = dbS['cause_description'];
+            cause.pictureSet = this._pictureSetMarshaller.extract(dbS['cause_picture_set']);
+            cause.deadline = dbS['cause_deadline'];
+            cause.goal = this._currencyAmountMarshaller.extract(dbS['cause_goal']);
+            cause.timeCreated = new Date(dbS['cause_time_created']);
+            cause.timeLastUpdated = new Date(dbS['cause_time_last_updated']);
+            cause.user = usersById[dbS['cause_user_id']];
 
             const shareForSession = new ShareForSession();
-            shareForSession.id = dbD['share_id'];
+            shareForSession.id = dbS['share_id'];
             shareForSession.forCause = cause;
-            shareForSession.facebookPostId = dbD['share_facebook_post_id'];
-            shareForSession.timeCreated = dbD['share_time_created'];
+            shareForSession.facebookPostId = dbS['share_facebook_post_id'];
+            shareForSession.timeCreated = dbS['share_time_created'];
 
             return shareForSession;
         });
