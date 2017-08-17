@@ -7,6 +7,7 @@ import {
     BankInfoMarshaller,
     CauseAnalytics,
     CauseEventType,
+    CauseQuickAnalytics,
     CauseState,
     CauseSummary,
     CreateCauseRequest,
@@ -178,22 +179,7 @@ export class Repository {
         for (let user of users)
             usersById[user.id] = user;
 
-        return dbCauses.map((dbC: any) => {
-            const cause = new PublicCause();
-            cause.id = dbC['cause_id'];
-            cause.state = dbC['cause_state'];
-            cause.slug = Repository._latestSlug(dbC['cause_slugs'].slugs);
-            cause.title = dbC['cause_title'];
-            cause.description = dbC['cause_description'];
-            cause.pictureSet = this._pictureSetMarshaller.extract(dbC['cause_picture_set']);
-            cause.deadline = dbC['cause_deadline'];
-            cause.goal = this._currencyAmountMarshaller.extract(dbC['cause_goal']);
-            cause.timeCreated = new Date(dbC['cause_time_created']);
-            cause.timeLastUpdated = new Date(dbC['cause_time_last_updated']);
-            cause.user = usersById[dbC['cause_user_id']];
-
-            return cause;
-        });
+        return dbCauses.map((dbC: any) => this._dbPublicCauseToPublicCause(dbC, usersById));
     }
 
     async getPublicCause(authInfo: AuthInfo, causeId: number): Promise<PublicCause> {
@@ -209,21 +195,9 @@ export class Repository {
         const dbCause = dbCauses[0];
 
         const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
+        const usersById = {[users[0].id]: users[0]};
 
-        const cause = new PublicCause();
-        cause.id = dbCause['cause_id'];
-        cause.state = dbCause['cause_state'];
-        cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
-        cause.title = dbCause['cause_title'];
-        cause.description = dbCause['cause_description'];
-        cause.pictureSet = this._pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-        cause.deadline = dbCause['cause_deadline'];
-        cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
-        cause.timeCreated = new Date(dbCause['cause_time_created']);
-        cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-        cause.user = users[0];
-
-        return cause;
+        return this._dbPublicCauseToPublicCause(dbCause, usersById);
     }
 
     async createCause(session: Session, createCauseRequest: CreateCauseRequest, requestTime: Date): Promise<PrivateCause> {
@@ -492,24 +466,12 @@ export class Repository {
         });
 
         const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
-
-        const cause = new PublicCause();
-        cause.id = dbCause['cause_id'];
-        cause.state = dbCause['cause_state'];
-        cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
-        cause.title = dbCause['cause_title'];
-        cause.description = dbCause['cause_description'];
-        cause.pictureSet = this._pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-        cause.deadline = dbCause['cause_deadline'];
-        cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
-        cause.timeCreated = new Date(dbCause['cause_time_created']);
-        cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-        cause.user = users[0];
+        const usersById = {[users[0].id]: users[0]};
 
         const donationForSession = new DonationForSession();
         donationForSession.id = dbId as number;
         donationForSession.amount = createDonationRequest.amount;
-        donationForSession.forCause = cause;
+        donationForSession.forCause = this._dbPublicCauseToPublicCause(dbCause, usersById);
         donationForSession.timeCreated = requestTime;
 
         return donationForSession;
@@ -559,23 +521,11 @@ export class Repository {
         });
 
         const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
-
-        const cause = new PublicCause();
-        cause.id = dbCause['cause_id'];
-        cause.state = dbCause['cause_state'];
-        cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
-        cause.title = dbCause['cause_title'];
-        cause.description = dbCause['cause_description'];
-        cause.pictureSet = this._pictureSetMarshaller.extract(dbCause['cause_picture_set']);
-        cause.deadline = dbCause['cause_deadline'];
-        cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
-        cause.timeCreated = new Date(dbCause['cause_time_created']);
-        cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
-        cause.user = users[0];
+        const usersById = {[users[0].id]: users[0]};
 
         const shareForSession = new ShareForSession();
         shareForSession.id = dbId as number;
-        shareForSession.forCause = cause;
+        shareForSession.forCause = this._dbPublicCauseToPublicCause(dbCause, usersById);
         shareForSession.facebookPostId = createShareRequest.facebookPostId;
         shareForSession.timeCreated = requestTime;
 
@@ -685,6 +635,12 @@ export class Repository {
             cause.pictureSet = this._pictureSetMarshaller.extract(dbD['cause_picture_set']);
             cause.deadline = dbD['cause_deadline'];
             cause.goal = this._currencyAmountMarshaller.extract(dbD['cause_goal']);
+            cause.quickAnalytics = new CauseQuickAnalytics();
+            cause.quickAnalytics.donationsCount = dbD['cause_donations_count'];
+            cause.quickAnalytics.amountDonated = new CurrencyAmount();
+            cause.quickAnalytics.amountDonated.amount = dbD['cause_amount_donated_in_currency']
+            cause.quickAnalytics.amountDonated.currency = cause.goal.currency;
+            cause.quickAnalytics.sharesCount = dbD['cause_shares_count'];
             cause.user = usersById[dbD['cause_user_id']];
 
             const donationForSession = new DonationForSession();
@@ -708,6 +664,12 @@ export class Repository {
             cause.goal = this._currencyAmountMarshaller.extract(dbS['cause_goal']);
             cause.timeCreated = new Date(dbS['cause_time_created']);
             cause.timeLastUpdated = new Date(dbS['cause_time_last_updated']);
+            cause.quickAnalytics = new CauseQuickAnalytics();
+            cause.quickAnalytics.donationsCount = dbS['cause_donations_count'];
+            cause.quickAnalytics.amountDonated = new CurrencyAmount();
+            cause.quickAnalytics.amountDonated.amount = dbS['cause_amount_donated_in_currency']
+            cause.quickAnalytics.amountDonated.currency = cause.goal.currency;
+            cause.quickAnalytics.sharesCount = dbS['cause_shares_count'];
             cause.user = usersById[dbS['cause_user_id']];
 
             const shareForSession = new ShareForSession();
@@ -735,6 +697,28 @@ export class Repository {
         userActionsOverview.latestShares = latestShares;
 
         return userActionsOverview;
+    }
+
+    private _dbPublicCauseToPublicCause(dbCause: any, usersById: UserIdToUserMap): PublicCause {
+        const cause = new PublicCause();
+        cause.id = dbCause['cause_id'];
+        cause.state = dbCause['cause_state'];
+        cause.slug = Repository._latestSlug(dbCause['cause_slugs'].slugs);
+        cause.title = dbCause['cause_title'];
+        cause.description = dbCause['cause_description'];
+        cause.pictureSet = this._pictureSetMarshaller.extract(dbCause['cause_picture_set']);
+        cause.deadline = dbCause['cause_deadline'];
+        cause.goal = this._currencyAmountMarshaller.extract(dbCause['cause_goal']);
+        cause.timeCreated = new Date(dbCause['cause_time_created']);
+        cause.timeLastUpdated = new Date(dbCause['cause_time_last_updated']);
+        cause.quickAnalytics = new CauseQuickAnalytics();
+        cause.quickAnalytics.donationsCount = dbCause['cause_donations_count'];
+        cause.quickAnalytics.amountDonated = new CurrencyAmount();
+        cause.quickAnalytics.amountDonated.amount = dbCause['cause_amount_donated_in_currency']
+        cause.quickAnalytics.amountDonated.currency = cause.goal.currency;
+        cause.quickAnalytics.sharesCount = dbCause['cause_shares_count'];
+        cause.user = usersById[dbCause['cause_user_id']];
+        return cause;
     }
 
     private static _latestSlug(slugs: any[]): string {
