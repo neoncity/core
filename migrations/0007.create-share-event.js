@@ -1,8 +1,8 @@
 exports.up = (knex, Promise) => knex.schema.raw(`
     CREATE TABLE core.share_event (
         -- Primary key
-	id Serial,
-	PRIMARY KEY (id),
+        id Serial,
+        PRIMARY KEY (id),
         -- Core properties
         type SmallInt NOT NULL,
         timestamp Timestamp NOT NULL,

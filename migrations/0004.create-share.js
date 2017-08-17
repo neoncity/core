@@ -2,7 +2,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
     CREATE TABLE core.share (
         -- Primary key
         id Serial,
-	PRIMARY KEY (id),
+        PRIMARY KEY (id),
         -- Foreign key
         cause_id Int NOT NULL REFERENCES core.cause(id),
         -- Foreign key to external systems

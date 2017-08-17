@@ -2,7 +2,7 @@ exports.up = (knex, Promise) => knex.schema.raw(`
     CREATE TABLE core.donation (
         -- Primary key
         id Serial,
-	PRIMARY KEY (id),
+        PRIMARY KEY (id),
         -- Core properties
         amount Json NOT NULL,
         -- Foreign key

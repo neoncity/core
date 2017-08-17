@@ -98,6 +98,9 @@ export class Repository {
         'core.cause.picture_set as cause_picture_set',
         'core.cause.deadline as cause_deadline',
         'core.cause.goal as cause_goal',
+        'core.cause.donations_count as cause_donations_count',
+        'core.cause.amount_donated_in_currency as cause_amount_donated_in_currency',
+        'core.cause.shares_count as cause_shares_count',
         'core.cause.user_id as cause_user_id',
         'core.cause.time_created as cause_time_created',
         'core.cause.time_last_updated as cause_time_last_updated'
@@ -257,6 +260,9 @@ export class Repository {
                         'goal': this._currencyAmountMarshaller.pack(createCauseRequest.goal),
                         'bank_info': this._bankInfoMarshaller.pack(createCauseRequest.bankInfo),
                         'user_id': (session.user as User).id,
+                        'donations_count': 0,
+                        'amount_donated_in_currency': 0,
+                        'shares_count': 0,
                         'time_created': requestTime,
                         'time_last_updated': requestTime,
                         'time_removed': null
@@ -449,7 +455,9 @@ export class Repository {
         await this._conn.transaction(async (trx) => {
             const dbCauses = await trx
                 .from('core.cause')
-                .select(Repository._causePublicFields)
+                .increment('donations_count', 1)
+                .increment('amount_donated_in_currency', createDonationRequest.amount.amount)
+                .returning(Repository._causePublicFields)
                 .where({ id: causeId, state: CauseState.Active })
                 .limit(1);
 
@@ -515,7 +523,8 @@ export class Repository {
         await this._conn.transaction(async (trx) => {
             const dbCauses = await trx
                 .from('core.cause')
-                .select(Repository._causePublicFields)
+                .increment('shares_count', 1)
+                .returning(Repository._causePublicFields)
                 .where({ id: causeId, state: CauseState.Active })
                 .limit(1);
 
