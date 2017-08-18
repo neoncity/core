@@ -14,7 +14,7 @@ import {
     newCheckOriginMiddleware,
     newCheckXsrfTokenMiddleware,
     newJsonContentMiddleware,
-    newLogginMiddleware,
+    newLoggingMiddleware,
     newRequestTimeMiddleware,
     newSessionMiddleware,
     SessionLevel,
@@ -77,7 +77,7 @@ async function main() {
     app.use(newCheckOriginMiddleware(config.CLIENTS));
     app.use(bodyParser.json());
     app.use(newJsonContentMiddleware());
-    app.use(newLogginMiddleware(config.NAME));
+    app.use(newLoggingMiddleware(config.NAME));
 
     if (!isLocal(config.ENV)) {
         app.use(compression());
