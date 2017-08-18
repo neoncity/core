@@ -39,7 +39,8 @@ import {
     AuthInfo,
     IdentityClient,
     newIdentityClient,
-    Session} from '@neoncity/identity-sdk-js'
+    Session
+} from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
 import { CoreRequest } from './core-request'
@@ -77,7 +78,7 @@ async function main() {
     app.use(newCheckOriginMiddleware(config.CLIENTS));
     app.use(bodyParser.json());
     app.use(newJsonContentMiddleware());
-    app.use(newLoggingMiddleware(config.NAME));
+    app.use(newLoggingMiddleware(config.NAME, config.ENV, config.LOGGLY_TOKEN, config.LOGGLY_SUBDOMAIN));
 
     if (!isLocal(config.ENV)) {
         app.use(compression());

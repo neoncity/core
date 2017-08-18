@@ -46,6 +46,8 @@ ENV DATABASE_MIGRATIONS_TABLE migrations_core
 ENV ORIGIN http://localhost:10002
 ENV CLIENTS http://localhost:10003
 ENV IDENTITY_SERVICE_HOST neoncity-identity:10000
+ENV LOGGLY_TOKEN null
+ENV LOGGLY_SUBDOMAIN null
 ENV SECRETS_PATH /neoncity/var/secrets.json
 
 RUN chown -R neoncity:neoncity /neoncity/build

@@ -15,10 +15,21 @@ export const IDENTITY_SERVICE_HOST: string = process.env.IDENTITY_SERVICE_HOST;
 
 export let THE_KEY: string;
 
+export let LOGGLY_TOKEN: string|null;
+export let LOGGLY_SUBDOMAIN: string|null;
+
 if (isLocal(ENV)) {
     const secrets = JSON.parse(readFileSync(process.env.SECRETS_PATH, 'utf-8'));
 
     THE_KEY = secrets['THE_KEY'];
 } else {
     THE_KEY = process.env.THE_KEY;
+}
+
+if (ENV == Env.Local || ENV == Env.Test) {
+    LOGGLY_TOKEN = null;
+    LOGGLY_SUBDOMAIN = null;
+} else {
+    LOGGLY_TOKEN = process.env.LOGGLY_TOKEN;
+    LOGGLY_SUBDOMAIN = process.env.LOGGLY_SUBDOMAIN;
 }
