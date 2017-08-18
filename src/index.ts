@@ -14,6 +14,7 @@ import {
     newCheckOriginMiddleware,
     newCheckXsrfTokenMiddleware,
     newJsonContentMiddleware,
+    newLogginMiddleware,
     newRequestTimeMiddleware,
     newSessionMiddleware,
     SessionLevel,
@@ -38,8 +39,7 @@ import {
     AuthInfo,
     IdentityClient,
     newIdentityClient,
-    Session
-} from '@neoncity/identity-sdk-js'
+    Session} from '@neoncity/identity-sdk-js'
 
 import * as config from './config'
 import { CoreRequest } from './core-request'
@@ -77,6 +77,7 @@ async function main() {
     app.use(newCheckOriginMiddleware(config.CLIENTS));
     app.use(bodyParser.json());
     app.use(newJsonContentMiddleware());
+    app.use(newLogginMiddleware(config.NAME));
 
     if (!isLocal(config.ENV)) {
         app.use(compression());
@@ -87,7 +88,7 @@ async function main() {
     publicCausesRouter.get('/summaries', [
         newAuthInfoMiddleware(AuthInfoLevel.None),
         newSessionMiddleware(SessionLevel.None, identityClient)
-    ], wrap(async (_: CoreRequest, res: express.Response) => {
+    ], wrap(async (req: CoreRequest, res: express.Response) => {
         try {
             const allCauseSummaries = await repository.getAllCauseSummaries();
 
@@ -98,9 +99,7 @@ async function main() {
             res.status(HttpStatus.OK);
             res.end();
         } catch (e) {
-            console.log(`DB read error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
             return;
@@ -111,6 +110,7 @@ async function main() {
         newAuthInfoMiddleware(AuthInfoLevel.SessionId),
         newSessionMiddleware(SessionLevel.Session, identityClient)
     ], wrap(async (req: CoreRequest, res: express.Response) => {
+        (req as any).log.error('Bad stuff');
         try {
             const publicCauses = await repository.getPublicCauses(req.authInfo as AuthInfo);
 
@@ -121,9 +121,7 @@ async function main() {
             res.status(HttpStatus.OK);
             res.end();
         } catch (e) {
-            console.log(`DB read error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
             return;
@@ -138,7 +136,7 @@ async function main() {
         const causeId = parseInt(req.params['causeId']);
 
         if (isNaN(causeId)) {
-            console.log('Invalid cause id');
+            req.log.warn('Invalid cause id');
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
             return;
@@ -155,15 +153,12 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
             }
 
-            console.log(`DB retrieval error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -178,7 +173,7 @@ async function main() {
         const causeId = parseInt(req.params['causeId']);
 
         if (isNaN(causeId)) {
-            console.log('Invalid cause id');
+            req.log.warn('Invalid cause id');
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
             return;
@@ -188,9 +183,7 @@ async function main() {
         try {
             createDonationRequest = createDonationRequestMarshaller.extract(req.body);
         } catch (e) {
-            console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.warn('Could not decode donation request');
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
             return;
@@ -207,15 +200,12 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
             }
 
-            console.log(`DB insertion error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -230,7 +220,7 @@ async function main() {
         const causeId = parseInt(req.params['causeId']);
 
         if (isNaN(causeId)) {
-            console.log('Invalid cause id');
+            req.log.warn('Invalid cause id');
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
             return;
@@ -240,9 +230,7 @@ async function main() {
         try {
             createShareRequest = createShareRequestMarshaller.extract(req.body);
         } catch (e) {
-            console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.warn('Invalid creation data');
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
             return;
@@ -259,15 +247,12 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
             }
 
-            console.log(`DB insertion error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -284,9 +269,7 @@ async function main() {
         try {
             createCauseRequest = createCauseRequestMarshaller.extract(req.body) as CreateCauseRequest;
         } catch (e) {
-            console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.warn('Invalid creation data');
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
             return;
@@ -304,22 +287,18 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'InvalidCausePropertiesError') {
-                console.log(e.message);
                 res.status(HttpStatus.BAD_REQUEST);
                 res.end();
                 return;
             }
 
             if (e.name == 'CauseAlreadyExistsError') {
-                console.log(e.message);
                 res.status(HttpStatus.CONFLICT);
                 res.end();
                 return;
             }
 
-            console.log(`DB insertion error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -338,7 +317,6 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
@@ -355,9 +333,7 @@ async function main() {
                 return;
             }
 
-            console.log(`DB retrieval error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -375,15 +351,12 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
             }
 
-            console.log(`DB read error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -394,9 +367,7 @@ async function main() {
         try {
             updateCauseRequest = updateCauseRequestMarshaller.extract(req.body) as UpdateCauseRequest;
         } catch (e) {
-            console.log(`Invalid creation data - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.warn('Invalid creation data');
             res.status(HttpStatus.BAD_REQUEST);
             res.end();
             return;
@@ -414,14 +385,12 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'InvalidCausePropertiesError') {
-                console.log(e.message);
                 res.status(HttpStatus.BAD_REQUEST);
                 res.end();
                 return;
             }
 
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
@@ -438,9 +407,7 @@ async function main() {
                 return;
             }
 
-            console.log(`DB retrieval error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -454,15 +421,12 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
             }
 
-            console.log(`DB update error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }
@@ -485,15 +449,12 @@ async function main() {
             res.end();
         } catch (e) {
             if (e.name == 'CauseNotFoundError') {
-                console.log(e.message);
                 res.status(HttpStatus.NOT_FOUND);
                 res.end();
                 return;
             }
 
-            console.log(`DB read error - ${e.toString()}`);
-            console.log(e.stack);
-
+            req.log.error(e);
             res.status(HttpStatus.INTERNAL_SERVER_ERROR);
             res.end();
         }

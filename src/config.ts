@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 
 import { Env, parseEnv, isLocal } from '@neoncity/common-js/env';
 
+export const NAME: string = 'core';
 export const ENV: Env = parseEnv(process.env.ENV);
 export const ADDRESS: string = process.env.ADDRESS;
 export const PORT: number = parseInt(process.env.PORT, 10);
