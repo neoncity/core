@@ -123,7 +123,6 @@ export class Repository {
         'core.share.cause_id as share_cause_id',
         'core.share.session_id as share_session_id',
         'core.share.user_id as share_user_id',
-        'core.share.facebook_post_id as facebook_post_id',
         'core.share.time_created as share_time_created'
     ];
 
@@ -195,7 +194,7 @@ export class Repository {
         const dbCause = dbCauses[0];
 
         const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
-        const usersById = {[users[0].id]: users[0]};
+        const usersById = { [users[0].id]: users[0] };
 
         return this._dbPublicCauseToPublicCause(dbCause, usersById);
     }
@@ -466,7 +465,7 @@ export class Repository {
         });
 
         const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
-        const usersById = {[users[0].id]: users[0]};
+        const usersById = { [users[0].id]: users[0] };
 
         const donationForSession = new DonationForSession();
         donationForSession.id = dbId as number;
@@ -503,8 +502,7 @@ export class Repository {
                     'time_created': requestTime,
                     'cause_id': causeId,
                     'session_id': session.hasUser() ? null : authInfo.sessionId,
-                    'user_id': session.hasUser() ? (session.user as User).id : null,
-                    'facebook_post_id': createShareRequest.facebookPostId
+                    'user_id': session.hasUser() ? (session.user as User).id : null
                 });
 
             dbId = dbIds[0];
@@ -521,12 +519,11 @@ export class Repository {
         });
 
         const users = await this._identityClient.withContext(authInfo).getUsersInfo([dbCause['cause_user_id']]);
-        const usersById = {[users[0].id]: users[0]};
+        const usersById = { [users[0].id]: users[0] };
 
         const shareForSession = new ShareForSession();
         shareForSession.id = dbId as number;
         shareForSession.forCause = this._dbPublicCauseToPublicCause(dbCause, usersById);
-        shareForSession.facebookPostId = createShareRequest.facebookPostId;
         shareForSession.timeCreated = requestTime;
 
         return shareForSession;
@@ -675,7 +672,6 @@ export class Repository {
             const shareForSession = new ShareForSession();
             shareForSession.id = dbS['share_id'];
             shareForSession.forCause = cause;
-            shareForSession.facebookPostId = dbS['share_facebook_post_id'];
             shareForSession.timeCreated = dbS['share_time_created'];
 
             return shareForSession;

@@ -8,7 +8,6 @@ exports.up = (knex, Promise) => knex.schema.raw(`
         -- Foreign key to external systems
         session_id Uuid NULL,
         user_id Int NULL,
-        facebook_post_id VarChar(128) NOT NULL,
         -- Denormalized data
         time_created Timestamp NOT NULL
     );
