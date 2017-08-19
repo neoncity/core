@@ -111,7 +111,6 @@ async function main() {
         newAuthInfoMiddleware(AuthInfoLevel.SessionId),
         newSessionMiddleware(SessionLevel.Session, identityClient)
     ], wrap(async (req: CoreRequest, res: express.Response) => {
-        (req as any).log.error('Bad stuff');
         try {
             const publicCauses = await repository.getPublicCauses(req.authInfo as AuthInfo);
 
