@@ -1,6 +1,6 @@
 {
   "name": "@neoncity/core",
-  "version": "5.16.0",
+  "version": "5.17.0",
   "description": "The core service.",
   "author": "NeonCity team",
   "scripts": {
@@ -61,6 +61,6 @@
     "mocha": "=3.2.0",
     "nodemon": "=1.11.0",
     "remap-istanbul": "=0.8.4",
-    "typescript": "=2.1.5"
+    "typescript": "=2.4.2"
   }
 }
